@@ -38,6 +38,7 @@ Thumbs.db
 # Jupyter notebooks
 notebooks/
 *.ipynb
+!fast_imcom_1d/*.ipynb
 .ipynb_checkpoints/
 
 # Byte-compiled files

@@ -6,8 +6,7 @@ from astropy import units as u
 from astropy.io import fits
 
 from fast_imcom.io_general import InSlice, OutSlice
-from fast_imcom.psfutil import SAMP, NTOT, SIGMA
-from fast_imcom.psfutil import psf_gaussian_2d, get_weight_field, SubSlice
+from fast_imcom.psfutil import PSFModel, SubSlice
 
 
 inslices = [InSlice(name) for name in glob.glob("../test_imcom_stips/sim_*.fits")]
@@ -23,18 +22,16 @@ outwcs.wcs.cdelt = [-cdelt, cdelt]
 outslice = OutSlice(outwcs)
 outslice.inslices = inslices
 
-psf_in = np.zeros((NTOT, NTOT))
+psf_in = np.zeros((PSFModel.NTOT, PSFModel.NTOT))
 with fits.open("../test_imcom_stips/psf_WFI_2.3_F158_wfi01.fits") as hdul:
-    psf_in[8:-7, 8:-7] = hdul[0].data.mean(axis=0) * SAMP**2
-# psf_in = psf_simple_airy(LDP["H158"])
-
-psf_out = psf_gaussian_2d(SIGMA["H158"] * 1.5)
-weight = get_weight_field(psf_in, psf_out)
+    psf_in[8:-7, 8:-7] = hdul[0].data.mean(axis=0) * PSFModel.SAMP**2
+psfmodel = PSFModel(psf_in)
 
 for X in range(0, 4088, 56):
     print(f"Processing subslices ({X // 56}, *)...")
     for Y in range(0, 4088, 56):
-        SubSlice(outslice, X, Y)(weight)
+        psf_out = PSFModel.psf_gaussian_2d(PSFModel.SIGMA["H158"] * 1.5)
+        SubSlice(outslice, X, Y)(PSFModel.get_weight_field(psfmodel(), psf_out))
 
 outslice.data /= len(inslices)
 outslice.writeto("../test_imcom_stips/test_imcom_stips_new.fits")

@@ -78,8 +78,11 @@ class SubSlice:
             np.arange(X, X+56), np.arange(Y, Y+56))), 0, -1).reshape(-1, 2)
         self.out_arr = np.zeros((self.ACCEPT*2, self.ACCEPT*2))
 
-    def __call__(self, weight: np.ndarray) -> None:
+    def __call__(self) -> None:
         for inslice in self.outslice.inslices:
+            psf_out = PSFModel.psf_gaussian_2d(PSFModel.SIGMA["H158"] * 1.5)
+            weight = PSFModel.get_weight_field(inslice.psfmodel(), psf_out)
+
             # InImage.outpix2world2inpix
             inxys = inslice.wcs.all_world2pix(self.outslice.wcs.all_pix2world(self.outxys, 0), 0)
             inxys_frac, inxys_int = np.modf(inxys); inxys_int = inxys_int.astype(int)

@@ -149,13 +149,14 @@ def gridD5512C(infunc: np.array, xpos: np.array, ypos: np.array,
 
 
 @njit
-def apply_weight_field(outxys: np.ndarray, inxys_frac: np.ndarray, inxys_int: np.ndarray,
-                       weight: np.ndarray, outdata: np.ndarray, indata: np.ndarray,
-                       accept: int, yxo: np.ndarray, SAMP: int) -> None:
-    out_arr = np.zeros((accept*2, accept*2))
+def apply_weight_field(ACCEPT: int, YXO: np.ndarray, SAMP: int,
+                       weight: np.ndarray, inxys_frac: np.ndarray,
+                       indata: np.ndarray, inxys_int: np.ndarray,
+                       outdata: np.ndarray, outxys: np.ndarray) -> None:
+    out_arr = np.zeros((ACCEPT*2, ACCEPT*2))
     for i in range(56**2):
-        gridD5512C(weight, yxo[None, :]-inxys_frac[i, 0]*SAMP, \
-            yxo[None, :]-inxys_frac[i, 1]*SAMP, out_arr.reshape((1, -1)))
+        gridD5512C(weight, YXO[None, :]-inxys_frac[i, 0]*SAMP, \
+            YXO[None, :]-inxys_frac[i, 1]*SAMP, out_arr.reshape((1, -1)))
         outdata[outxys[i, 1], outxys[i, 0]] += np.sum(
-            out_arr * indata[inxys_int[i, 1]-accept:inxys_int[i, 1]+accept,
-                             inxys_int[i, 0]-accept:inxys_int[i, 0]+accept])
+            out_arr * indata[inxys_int[i, 1]-ACCEPT:inxys_int[i, 1]+ACCEPT,
+                             inxys_int[i, 0]-ACCEPT:inxys_int[i, 0]+ACCEPT])

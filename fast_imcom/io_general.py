@@ -29,6 +29,10 @@ class InSlice:
 
 class OutSlice:
 
+    NSUB = 73  # Output slice size in subslices, similar to n1 in PyIMCOM.
+    NPIX_SUB = 56  # Subslice size in pixels, similar to n2 in PyIMCOM.
+    NPIX_TOT = NSUB * NPIX_SUB  # Output slice size in pixels.
+
     @staticmethod
     def get_outwcs(outcrval: np.ndarray, outcrpix: list[float] = [2044.0, 2044.0],
                    outcdelt: float = 0.11 * u.arcsec.to("degree") / 2.0) -> wcs.WCS:
@@ -42,14 +46,15 @@ class OutSlice:
     def __init__(self, wcs: wcs.WCS, inslices: list[InSlice]) -> None:
         self.wcs = wcs
         self.inslices = inslices
-        self.data = np.zeros((4088, 4088), dtype=np.float32)
+        self.data = np.zeros((self.NPIX_TOT, self.NPIX_TOT), dtype=np.float32)
 
     def __call__(self, filename: str = None,
                  timing: bool = False) -> None:
         if timing: tstart = perf_counter()
-        for X in range(0, 4088, 56):
-            if timing: print(f"Processing subslices ({X // 56}, *)...", perf_counter() - tstart)
-            for Y in range(0, 4088, 56):
+        for X in range(0, self.NPIX_TOT, self.NPIX_SUB):
+            if timing: print(f"Processing subslices ({X // self.NPIX_SUB}, *)...",
+                             f"@ t = {perf_counter() - tstart:.6f} s")
+            for Y in range(0, self.NPIX_TOT, self.NPIX_SUB):
                 SubSlice(self, X, Y)()
         self.data /= len(self.inslices)
 

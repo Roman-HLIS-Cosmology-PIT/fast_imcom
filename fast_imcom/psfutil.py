@@ -9,7 +9,7 @@ pixelate_psf_2d : Pixelate a 2D (input) PSF.
 
 import numpy as np
 
-from .routine import gridD5512C
+from .routine import gridD5512C, apply_weight_field
 
 
 NPIX = 48  # PSF array size in native pixels.
@@ -75,10 +75,13 @@ class SubSlice:
             inxys = inslice.wcs.all_world2pix(self.outslice.wcs.all_pix2world(self.outxys, 0), 0)
             inxys_frac, inxys_int = np.modf(inxys); inxys_int = inxys_int.astype(int)
 
-            for i in range(56**2):
-                dxpix, dypix = inxys_frac[i]
-                gridD5512C(weight, self.yxo[None, :]-dxpix*SAMP, \
-                    self.yxo[None, :]-dypix*SAMP, self.out_arr.reshape((1, -1)))
-                self.outslice.data[self.outxys[i, 1], self.outxys[i, 0]] += np.tensordot(
-                    self.out_arr, inslice.data[inxys_int[i, 1]-self.ACCEPT:inxys_int[i, 1]+self.ACCEPT,
-                                               inxys_int[i, 0]-self.ACCEPT:inxys_int[i, 0]+self.ACCEPT])
+            apply_weight_field(self.outxys, inxys_frac, inxys_int,
+                               weight, self.outslice.data, inslice.data,
+                               self.ACCEPT, self.yxo, SAMP)
+            # for i in range(56**2):
+            #     dxpix, dypix = inxys_frac[i]
+            #     gridD5512C(weight, self.yxo[None, :]-dxpix*SAMP, \
+            #         self.yxo[None, :]-dypix*SAMP, self.out_arr.reshape((1, -1)))
+            #     self.outslice.data[self.outxys[i, 1], self.outxys[i, 0]] += np.tensordot(
+            #         self.out_arr, inslice.data[inxys_int[i, 1]-self.ACCEPT:inxys_int[i, 1]+self.ACCEPT,
+            #                                    inxys_int[i, 0]-self.ACCEPT:inxys_int[i, 0]+self.ACCEPT])

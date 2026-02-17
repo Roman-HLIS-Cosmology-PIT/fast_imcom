@@ -36,7 +36,7 @@ for X in range(0, 4088, 56):
     for Y in range(0, 4088, 56):
         SubSlice(outslice, X, Y)(weight)
 
-# outslice.data /= len(inslices)
+outslice.data /= len(inslices)
 outslice.writeto("../test_imcom_stips/test_imcom_stips_new.fits")
 
 with fits.open("../test_imcom_stips/test_imcom_stips.fits") as a, \

@@ -19,14 +19,14 @@ class InSlice:
         self.filename = filename
         with fits.open(filename) as f:
             self.wcs = wcs.WCS(f["WFI01"].header)
-            self.data = f["WFI01"].data
+            self.data = f["WFI01"].data.astype(np.float32)
 
 
 class OutSlice:
 
     def __init__(self, wcs = wcs.WCS) -> None:
         self.wcs = wcs
-        self.data = np.zeros((4088, 4088), dtype=">f4")
+        self.data = np.zeros((4088, 4088), dtype=np.float32)
 
     def writeto(self, filename: str) -> None:
         hdu = fits.PrimaryHDU(self.data)

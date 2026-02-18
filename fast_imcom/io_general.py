@@ -125,16 +125,20 @@ class OutSlice:
             inslice.assess_overlap()
         self.inslices = [inslice for inslice in self.inslices if inslice.is_relevant]
         self.data = np.zeros((self.NPIX_TOT, self.NPIX_TOT), dtype=np.float32)
+        self.mask = np.stack([inslice.mask_out for inslice in self.inslices])
 
-    def __call__(self, filename: str = None,
+    def __call__(self, filename: str = None, stop: int = np.inf,
                  timing: bool = False) -> None:
         if timing: tstart = perf_counter()
         for X in range(self.NSUB):
-            if timing: print(f"Processing subslices ({X}, *)",
-                             f"@ t = {perf_counter() - tstart:.6f} s")
+            if stop > 0 and timing:
+                print(f"Processing subslices ({X}, *)",
+                      f"@ t = {perf_counter() - tstart:.6f} s")
             for Y in range(self.NSUB):
-                SubSlice(self, X, Y)()
-        self.data /= len(self.inslices)
+                if stop > 0:
+                    SubSlice(self, X, Y)()
+                stop -= 1
+        self.data /= self.mask.sum(axis=0)  # len(self.inslices)
 
         if filename is not None:
             self.writeto(filename)

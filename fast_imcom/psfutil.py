@@ -9,7 +9,8 @@ pixelate_psf_2d : Pixelate a 2D (input) PSF.
 
 import numpy as np
 
-from .routine import apply_weight_field
+# from .routine import apply_weight_field
+from .routine import compute_weights, apply_weights
 
 
 class PSFModel:
@@ -80,6 +81,8 @@ class SubSlice:
         self.out_arr = np.zeros((self.ACCEPT*2, self.ACCEPT*2))
 
     def __call__(self, sigma: float = PSFModel.SIGMA["H158"] * 1.5) -> None:
+        NPIX_SUB = self.outslice.NPIX_SUB  # Shortcut.
+
         for inslice in self.outslice.inslices:
             psf_in = inslice.get_psf()  # inslice.psfmodel()
             psf_out = PSFModel.psf_gaussian_2d(sigma)
@@ -87,8 +90,19 @@ class SubSlice:
 
             inxys = inslice.outpix2world2inpix(self.outslice.wcs, self.outxys)
             inxys_frac, inxys_int = np.modf(inxys); inxys_int = inxys_int.astype(int)
-            # if inslice.shrunk:
-            #     inxys_int[0] -= inslice.inx_min
-            #     inxys_int[1] -= inslice.iny_min
-            apply_weight_field(self.ACCEPT, self.YXO, PSFModel.SAMP, weight, inxys_frac,
-                               inslice.data, inxys_int, self.outslice.data, self.outxys)
+            # apply_weight_field(self.ACCEPT, self.YXO, PSFModel.SAMP, weight, inxys_frac,
+            #                    inslice.data, inxys_int, self.outslice.data, self.outxys)
+            weights = np.zeros((NPIX_SUB**2, self.ACCEPT*2, self.ACCEPT*2))
+            compute_weights(weight, self.YXO, PSFModel.SAMP, inxys_frac, weights)
+
+            x_min, y_min = np.min(inxys_int, axis=0) - self.ACCEPT
+            x_max, y_max = np.max(inxys_int, axis=0) + self.ACCEPT
+            indata, inmask = inslice.get_data_and_mask(x_min, x_max, y_min, y_max)
+            inxys_int -= np.array([x_min, y_min])
+
+            # apply_weights(weights, self.ACCEPT, indata, inxys_int,
+            #               self.outslice.data, self.outxys)
+            outdata = np.zeros((NPIX_SUB, NPIX_SUB))
+            apply_weights(weights, self.ACCEPT, indata, inxys_int, outdata.reshape(-1))
+            self.outslice.data[self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
+                               self.X*NPIX_SUB:(self.X+1)*NPIX_SUB] += outdata

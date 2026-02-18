@@ -148,15 +148,40 @@ def gridD5512C(infunc: np.array, xpos: np.array, ypos: np.array,
                 ipos += 1
 
 
+# @njit
+# def apply_weight_field(ACCEPT: int, YXO: np.ndarray, SAMP: int,
+#                        weight: np.ndarray, inxys_frac: np.ndarray,
+#                        indata: np.ndarray, inxys_int: np.ndarray,
+#                        outdata: np.ndarray, outxys: np.ndarray) -> None:
+#     out_arr = np.zeros((ACCEPT*2, ACCEPT*2))
+#     for i in range(56**2):
+#         gridD5512C(weight, YXO[None, :]-inxys_frac[i, 0]*SAMP, \
+#             YXO[None, :]-inxys_frac[i, 1]*SAMP, out_arr.reshape((1, -1)))
+#         outdata[outxys[i, 1], outxys[i, 0]] += np.sum(
+#             out_arr * indata[inxys_int[i, 1]-ACCEPT:inxys_int[i, 1]+ACCEPT,
+#                              inxys_int[i, 0]-ACCEPT:inxys_int[i, 0]+ACCEPT])
+
 @njit
-def apply_weight_field(ACCEPT: int, YXO: np.ndarray, SAMP: int,
-                       weight: np.ndarray, inxys_frac: np.ndarray,
-                       indata: np.ndarray, inxys_int: np.ndarray,
-                       outdata: np.ndarray, outxys: np.ndarray) -> None:
-    out_arr = np.zeros((ACCEPT*2, ACCEPT*2))
-    for i in range(56**2):
+def compute_weights(weight: np.ndarray, YXO: np.ndarray, SAMP: int,
+                    inxys_frac: np.ndarray, weights: np.ndarray) -> None:
+    for i in range(inxys_frac.shape[0]):
         gridD5512C(weight, YXO[None, :]-inxys_frac[i, 0]*SAMP, \
-            YXO[None, :]-inxys_frac[i, 1]*SAMP, out_arr.reshape((1, -1)))
-        outdata[outxys[i, 1], outxys[i, 0]] += np.sum(
-            out_arr * indata[inxys_int[i, 1]-ACCEPT:inxys_int[i, 1]+ACCEPT,
-                             inxys_int[i, 0]-ACCEPT:inxys_int[i, 0]+ACCEPT])
+            YXO[None, :]-inxys_frac[i, 1]*SAMP, weights[i].reshape((1, -1)))
+
+# @njit
+# def apply_weights(weights: np.ndarray, ACCEPT: int,
+#                   indata: np.ndarray, inxys_int: np.ndarray,
+#                   outdata: np.ndarray, outxys: np.ndarray) -> None:
+#     for i in range(inxys_int.shape[0]):
+#         outdata[outxys[i, 1], outxys[i, 0]] += np.sum(
+#             weights[i] * indata[inxys_int[i, 1]-ACCEPT:inxys_int[i, 1]+ACCEPT,
+#                                 inxys_int[i, 0]-ACCEPT:inxys_int[i, 0]+ACCEPT])
+
+@njit
+def apply_weights(weights: np.ndarray, ACCEPT: int,
+                  indata: np.ndarray, inxys_int: np.ndarray,
+                  outdata: np.ndarray) -> None:
+    for i in range(inxys_int.shape[0]):
+        outdata[i] += np.sum(weights[i] *\
+            indata[inxys_int[i, 1]-ACCEPT:inxys_int[i, 1]+ACCEPT,
+                   inxys_int[i, 0]-ACCEPT:inxys_int[i, 0]+ACCEPT])

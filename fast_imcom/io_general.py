@@ -38,7 +38,7 @@ class InSlice:
     def inpix2world2outpix(self, outwcs: wcs.WCS, inxys: np.ndarray) -> np.ndarray:
         return outwcs.all_world2pix(self.wcs.all_pix2world(inxys, 0), 0)
 
-    def assess_overlap(self, shrink: bool = True) -> bool:
+    def assess_overlap(self, shrink: bool = True) -> None:
         ACCEPT = SubSlice.ACCEPT  # Shortcuts.
         NSUB, NPIX_SUB = OutSlice.NSUB, OutSlice.NPIX_SUB
         outxys_sp = np.moveaxis(np.array(np.meshgrid(
@@ -78,6 +78,9 @@ class InSlice:
                            (inxys <= InSlice.NSIDE-0.5-ACCEPT), axis=1).\
                     reshape(NPIX_SUB, NPIX_SUB)
 
+        self.is_relevant = np.any(self.mask_out)
+        if not self.is_relevant: return
+
         if shrink:
             self.inx_min = max(self.inx_min - ACCEPT*3, 0)
             self.iny_min = max(self.iny_min - ACCEPT*3, 0)
@@ -89,11 +92,13 @@ class InSlice:
             self.mask = self.mask[self.iny_min:self.iny_max+1, self.inx_min:self.inx_max+1].copy()
             self.shrunk = True
 
-        return np.any(self.mask_out)
-
     def get_psf(self, x: float = -np.inf, y: float = -np.inf) -> np.ndarray:
         if not self.shrunk: return self.psfmodel(x, y)
         return self.psfmodel(x + self.inx_min, y + self.iny_min)
+
+    def get_data_and_mask(self, x_min, x_max, y_min, y_max) -> tuple[np.ndarray, np.ndarray]:
+        return (self.data[y_min:y_max+1, x_min:x_max+1].copy(),
+                self.mask[y_min:y_max+1, x_min:x_max+1].copy())
 
 
 class OutSlice:
@@ -118,6 +123,7 @@ class OutSlice:
         for inslice in self.inslices:
             inslice.outslice = self
             inslice.assess_overlap()
+        self.inslices = [inslice for inslice in self.inslices if inslice.is_relevant]
         self.data = np.zeros((self.NPIX_TOT, self.NPIX_TOT), dtype=np.float32)
 
     def __call__(self, filename: str = None,

@@ -17,7 +17,8 @@ psfmodel = PSFModel(psf_in)
 for inslice in inslices:
     inslice.psfmodel = psfmodel
 
-outslice = OutSlice(OutSlice.get_outwcs(outcrval), inslices)
+outwcs = OutSlice.get_outwcs(outcrval)
+outslice = OutSlice(outwcs, inslices)
 outslice(filename="../test_imcom_stips/test_imcom_stips_new.fits", timing=True)
 
 with fits.open("../test_imcom_stips/test_imcom_stips.fits") as a, \

@@ -60,7 +60,7 @@ class PSFModel:
     def __init__(self, psfdata: np.ndarray) -> None:
         self.psfdata = psfdata
 
-    def __call__(self) -> float:
+    def __call__(self, x: float = -np.inf, y: float = -np.inf) -> np.ndarray:
         assert self.psfdata.ndim == 2, "PSFModel: The base class only supports 2D data."
         return self.psfdata
 
@@ -81,11 +81,14 @@ class SubSlice:
 
     def __call__(self, sigma: float = PSFModel.SIGMA["H158"] * 1.5) -> None:
         for inslice in self.outslice.inslices:
-            psf_in = inslice.psfmodel()
+            psf_in = inslice.get_psf()  # inslice.psfmodel()
             psf_out = PSFModel.psf_gaussian_2d(sigma)
             weight = PSFModel.get_weight_field(psf_in, psf_out)
 
             inxys = inslice.outpix2world2inpix(self.outslice.wcs, self.outxys)
             inxys_frac, inxys_int = np.modf(inxys); inxys_int = inxys_int.astype(int)
+            # if inslice.shrunk:
+            #     inxys_int[0] -= inslice.inx_min
+            #     inxys_int[1] -= inslice.iny_min
             apply_weight_field(self.ACCEPT, self.YXO, PSFModel.SAMP, weight, inxys_frac,
                                inslice.data, inxys_int, self.outslice.data, self.outxys)

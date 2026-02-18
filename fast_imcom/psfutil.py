@@ -76,16 +76,16 @@ class SubSlice:
         self.X, self.Y = X, Y
         NPIX_SUB = self.outslice.NPIX_SUB  # Shortcut.
         self.outxys = np.moveaxis(np.array(np.meshgrid(
-            np.arange(X, X+NPIX_SUB), np.arange(Y, Y+NPIX_SUB))), 0, -1).reshape(-1, 2)
+            np.arange(NPIX_SUB) + X*NPIX_SUB, np.arange(NPIX_SUB) + Y*NPIX_SUB)), 0, -1).reshape(-1, 2)
         self.out_arr = np.zeros((self.ACCEPT*2, self.ACCEPT*2))
 
     def __call__(self, sigma: float = PSFModel.SIGMA["H158"] * 1.5) -> None:
         for inslice in self.outslice.inslices:
+            psf_in = inslice.psfmodel()
             psf_out = PSFModel.psf_gaussian_2d(sigma)
-            weight = PSFModel.get_weight_field(inslice.psfmodel(), psf_out)
+            weight = PSFModel.get_weight_field(psf_in, psf_out)
 
-            # InImage.outpix2world2inpix
-            inxys = inslice.wcs.all_world2pix(self.outslice.wcs.all_pix2world(self.outxys, 0), 0)
+            inxys = inslice.outpix2world2inpix(self.outslice.wcs, self.outxys)
             inxys_frac, inxys_int = np.modf(inxys); inxys_int = inxys_int.astype(int)
             apply_weight_field(self.ACCEPT, self.YXO, PSFModel.SAMP, weight, inxys_frac,
                                inslice.data, inxys_int, self.outslice.data, self.outxys)

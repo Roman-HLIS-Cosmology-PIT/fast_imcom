@@ -66,96 +66,50 @@ def iD5512C_getw(w: np.array, fh: float) -> None:
 
 
 @njit
-def gridD5512C(infunc: np.array, xpos: np.array, ypos: np.array,
-               fhatout: np.array) -> None:
-    '''
-    2D, 10x10 kernel interpolation for high accuracy
+def reggridD5512C(infunc: np.array, xctr: float, yctr: float,
+                  SAMP: int, ACCEPT: int, out_arr: np.array) -> None:
+    wx_ar = np.zeros((10,))
+    wy_ar = np.zeros((10,))
+    xctri = np.int32(xctr)
+    yctri = np.int32(yctr)
+    iD5512C_getw(wx_ar, xctr-xctri-.5)
+    iD5512C_getw(wy_ar, yctr-yctri-.5)
 
-    this version works with output points on a rectangular grid so that the same
-    weights in x and y can be used for many output points
+    ACCEPT2 = ACCEPT*2
+    xzero = xctri - ACCEPT*SAMP
+    yzero = yctri - ACCEPT*SAMP
 
-    Notes:
-    there are npi*nyo*nxo interpolations to be done in total
-    but for each input pixel npi, there is an nyo x nxo grid of output points
+    # The (faster) code below is equivalent to:
+    # for ix in range(ACCEPT2):
+    #     xi = xzero + ix*SAMP
+    #     interp_vstrip = np.sum(infunc[yzero-4:yzero+(ACCEPT2-1)*SAMP+6,
+    #                                   xi-4:xi+6] * wx_ar, axis=1)
+    #     for iy in range(ACCEPT2):
+    #         out_arr[iy, ix] = np.sum(interp_vstrip[iy*SAMP:iy*SAMP+10] * wy_ar)
 
-    Parameters
-    ----------
-    infunc : np.array, shape : (ngy, ngx)
-        Input function on some grid.
-    xpos : np.array, shape : (npi, nxo)
-        Input x values.
-    ypos : np.array, shape : (npi, nyo)
-        Input y values.
-    fhatout : np.array, shape : (npi, nyo*nxo)
-        Location to put the output values.
+    interp_vstrip = np.zeros((10+(ACCEPT2-1)*SAMP,))
+    for ix in range(ACCEPT2):
+        xi = xzero + ix*SAMP
 
-    Returns
-    -------
-    None.
+        for i in range(10+(ACCEPT2-1)*SAMP):
+            interp_vstrip[i] = 0.0
+            for j in range(10):
+                interp_vstrip[i] += wx_ar[j] * infunc[yzero-4+i, xi-4+j]
 
-    '''
-
-    # extract dimensions
-    ngy, ngx = infunc.shape
-    npi, nxo = xpos.shape[:2]
-    nyo = ypos.shape[1]
-
-    wx_ar = np.zeros((nxo, 10))
-    wy_ar = np.zeros((nyo, 10))
-    xi = np.zeros((nxo,), dtype=np.int32)
-    yi = np.zeros((nyo,), dtype=np.int32)
-
-    # loop over points to interpolate
-    for i_in in range(npi):
-        # get the interpolation weights -- first in x, then in y.
-        # do all the output points simultaneously to save time
-        for ix in range(nxo):
-            x = xpos[i_in, ix]
-            xi[ix] = np.int32(x)
-
-            # point off the grid, don't interpolate
-            if xi[ix] < 4 or xi[ix] >= ngx-5:
-                xi[ix] = 4
-                wx_ar[ix] = 0.0
-                continue
-    
-            iD5512C_getw(wx_ar[ix], x-xi[ix]-.5)
-
-        # ... and now in y
-        for iy in range(nyo):
-            y = ypos[i_in, iy]
-            yi[iy] = np.int32(y)
-
-            # point off the grid, don't interpolate
-            if yi[iy] < 4 or yi[iy] >= ngy-5:
-                yi[iy] = 4
-                wy_ar[iy] = 0.0
-                continue
-    
-            iD5512C_getw(wy_ar[iy], y-yi[iy]-.5)
-
-        # ... and now we can do the interpolation
-        ipos = 0
-        for iy in range(nyo):  # output pixel row
-            for ix in range(nxo):  # output pixel column
-                out = 0.0
-                for i in range(10):
-                    interp_vstrip = 0.0
-                    for j in range(10):
-                        interp_vstrip += wx_ar[ix, j] * infunc[yi[iy]-4+i, xi[ix]-4+j]
-                    out += interp_vstrip * wy_ar[iy, i]
-                fhatout[i_in, ipos] = out
-                ipos += 1
+        for iy in range(ACCEPT2):
+            out_arr[iy, ix] = 0.0
+            for i in range(10):
+                out_arr[iy, ix] += interp_vstrip[iy*SAMP+i] * wy_ar[i]
 
 
 @njit
 def compute_weights(weights: np.ndarray, mask_out: np.ndarray, weight: np.ndarray,
-                    inxys_frac: np.ndarray, YXO: np.ndarray, SAMP: int) -> None:
+                    inxys_frac: np.ndarray, YXCTR: float, SAMP: int, ACCEPT: int) -> None:
     for i in range(mask_out.shape[0]):
         if not mask_out[i]: continue
 
-        gridD5512C(weight, YXO[None, :]-inxys_frac[i, 0]*SAMP, \
-            YXO[None, :]-inxys_frac[i, 1]*SAMP, weights[i].reshape((1, -1)))
+        xctr, yctr = YXCTR + (1-inxys_frac[i])*SAMP
+        reggridD5512C(weight, xctr, yctr, SAMP, ACCEPT, weights[i])
 
 
 @njit

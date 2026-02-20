@@ -70,6 +70,7 @@ class SubSlice:
     ACCEPT = 8  # ACCEPTance radius
     YXO = np.arange(PSFModel.NTOT//2 - (ACCEPT-1)*PSFModel.SAMP,
                     PSFModel.NTOT//2 + (ACCEPT+1)*PSFModel.SAMP, PSFModel.SAMP, dtype=float)
+    YXCTR = PSFModel.NTOT//2
 
     def __init__(self, outslice, X: int, Y: int) -> None:
         self.outslice = outslice
@@ -97,8 +98,8 @@ class SubSlice:
             inxys_int -= np.array([x_min, y_min])
 
             weights = np.zeros((NPIX_SUB**2, self.ACCEPT*2, self.ACCEPT*2))
-            compute_weights(weights, mask_out, weight, 
-                            inxys_frac, self.YXO, PSFModel.SAMP)
+            compute_weights(weights, mask_out, weight, inxys_frac,
+                            self.YXCTR, PSFModel.SAMP, self.ACCEPT)
             adjust_weights(weights, mask_out, inmask, inxys_int, self.ACCEPT)
             outdata = np.zeros((NPIX_SUB, NPIX_SUB))
             apply_weights(weights, mask_out, outdata.ravel(), indata, inxys_int, self.ACCEPT)

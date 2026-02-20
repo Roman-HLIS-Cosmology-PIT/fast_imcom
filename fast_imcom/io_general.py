@@ -117,12 +117,19 @@ class OutSlice:
         outwcs.wcs.cdelt = [-outcdelt, outcdelt]
         return outwcs
 
-    def __init__(self, wcs: wcs.WCS, inslices: list[InSlice]) -> None:
+    def __init__(self, wcs: wcs.WCS, inslices: list[InSlice], timing: bool = False) -> None:
         self.wcs = wcs
         self.inslices = inslices
+
+        if timing: tstart = perf_counter()
         for inslice in self.inslices:
+            if timing: print(f"Assessing inslice {inslice.filename}",
+                             f"@ t = {perf_counter() - tstart:.6f} s")
             inslice.outslice = self
             inslice.assess_overlap()
+        if timing: print("Finished assessing inslices",
+                         f"@ t = {perf_counter() - tstart:.6f} s", end="\n\n")
+
         self.inslices = [inslice for inslice in self.inslices if inslice.is_relevant]
         self.data = np.zeros((self.NPIX_TOT, self.NPIX_TOT), dtype=np.float32)
         self.mask = np.stack([inslice.mask_out for inslice in self.inslices])
@@ -138,7 +145,10 @@ class OutSlice:
                 if stop > 0:
                     SubSlice(self, X, Y)()
                 stop -= 1
-        self.data /= self.mask.sum(axis=0)  # len(self.inslices)
+        if timing: print("Finished processing subslices",
+                         f"@ t = {perf_counter() - tstart:.6f} s")
+
+        self.data /= self.mask.sum(axis=0)
 
         if filename is not None:
             self.writeto(filename)

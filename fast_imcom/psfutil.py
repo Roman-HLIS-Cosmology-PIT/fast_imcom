@@ -18,6 +18,7 @@ class PSFModel:
     NPIX = 48  # PSF array size in native pixels.
     SAMP = 4  # Oversampling rate of PSF arrays.
     NTOT = NPIX * SAMP  # PSF array size in oversampled pixels.
+    YXCTR = NTOT // 2  # PSF array center in oversampled pixels.
 
     SIGMA_TO_FWHM = 2 * np.sqrt(2 * np.log(2))
     SIGMA = {
@@ -67,7 +68,7 @@ class PSFModel:
 class SubSlice:
 
     ACCEPT = 8  # ACCEPTance radius
-    YXCTR = PSFModel.NTOT//2
+    LOSS_THR = 0.001  # Threshold for total lost weight.
 
     def __init__(self, outslice, X: int, Y: int) -> None:
         self.outslice = outslice
@@ -81,7 +82,7 @@ class SubSlice:
         NPIX_SUB = self.outslice.NPIX_SUB  # Shortcut.
 
         for inslice in self.outslice.inslices:
-            psf_in = inslice.get_psf()  # inslice.psfmodel()
+            psf_in = inslice.get_psf()
             psf_out = PSFModel.psf_gaussian_2d(sigma)
             weight = PSFModel.get_weight_field(psf_in, psf_out)
 
@@ -91,14 +92,16 @@ class SubSlice:
             x_max, y_max = np.max(inxys_int, axis=0) + self.ACCEPT
             indata, inmask = inslice.get_data_and_mask(x_min, x_max, y_min, y_max)
             mask_out = inslice.mask_out[self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
-                                        self.X*NPIX_SUB:(self.X+1)*NPIX_SUB].ravel()
+                                        self.X*NPIX_SUB:(self.X+1)*NPIX_SUB].copy()
             inxys_int -= np.array([x_min, y_min])
 
             weights = np.zeros((NPIX_SUB**2, self.ACCEPT*2, self.ACCEPT*2))
-            compute_weights(weights, mask_out, weight, inxys_frac,
-                            self.YXCTR, PSFModel.SAMP, self.ACCEPT)
-            adjust_weights(weights, mask_out, inmask, inxys_int, self.ACCEPT)
+            compute_weights(weights, mask_out.ravel(), weight, inxys_frac,
+                            PSFModel.YXCTR, PSFModel.SAMP, self.ACCEPT)
+            adjust_weights(weights, mask_out.ravel(), inmask, inxys_int, self.ACCEPT, self.LOSS_THR)
+            inslice.mask_out[self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
+                             self.X*NPIX_SUB:(self.X+1)*NPIX_SUB] = mask_out
             outdata = np.zeros((NPIX_SUB, NPIX_SUB))
-            apply_weights(weights, mask_out, outdata.ravel(), indata, inxys_int, self.ACCEPT)
+            apply_weights(weights, mask_out.ravel(), outdata.ravel(), indata, inxys_int, self.ACCEPT)
             self.outslice.data[self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
                                self.X*NPIX_SUB:(self.X+1)*NPIX_SUB] += outdata

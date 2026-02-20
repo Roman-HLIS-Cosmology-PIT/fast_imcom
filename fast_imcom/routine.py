@@ -159,14 +159,23 @@ def compute_weights(weights: np.ndarray, mask_out: np.ndarray, weight: np.ndarra
 
 @njit
 def adjust_weights(weights: np.ndarray, mask_out: np.ndarray, inmask: np.ndarray,
-                   inxys_int: np.ndarray, ACCEPT: int) -> None:
+                   inxys_int: np.ndarray, ACCEPT: int, LOSS_THR: float) -> None:
     for i in range(mask_out.shape[0]):
         if not mask_out[i]: continue
 
-        sum_ = weights[i].sum()  # Renormalization, TBD.
+        loss = np.sum(np.abs(weights[i]) *\
+            (1-inmask[inxys_int[i, 1]-ACCEPT:inxys_int[i, 1]+ACCEPT,
+                      inxys_int[i, 0]-ACCEPT:inxys_int[i, 0]+ACCEPT]))
+        if loss == 0.0: continue
+
+        loss_frac = loss / weights[i].sum()
+        if loss_frac > LOSS_THR:
+            mask_out[i] = False
+            continue
+
         weights[i] *= inmask[inxys_int[i, 1]-ACCEPT:inxys_int[i, 1]+ACCEPT,
                              inxys_int[i, 0]-ACCEPT:inxys_int[i, 0]+ACCEPT]
-        weights[i] *= sum_ / weights[i].sum()  # Renormalization, TBD.
+        weights[i] *= 1 / (1 - loss_frac)
 
 
 @njit

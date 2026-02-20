@@ -22,14 +22,14 @@ class InSlice:
 
     NSIDE = 4088
 
-    def __init__(self, filename: str, loaddata: bool = True,
-                 mask: np.ndarray = None, psfmodel: PSFModel = None) -> None:
+    def __init__(self, filename: str, psfmodel: PSFModel = None,
+                 loaddata: bool = True, mask: np.ndarray = None) -> None:
         self.filename = filename
+        self.psfmodel = psfmodel
         with fits.open(filename) as f:
             self.wcs = wcs.WCS(f["WFI01"].header)
             self.data = f["WFI01"].data.astype(np.float32) if loaddata else None
         self.mask = mask if mask is not None else np.ones((self.NSIDE, self.NSIDE), dtype=bool)
-        self.psfmodel = psfmodel
         self.shrunk = False
 
     def outpix2world2inpix(self, outwcs: wcs.WCS, outxys: np.ndarray) -> np.ndarray:
@@ -134,8 +134,8 @@ class OutSlice:
         self.data = np.zeros((self.NPIX_TOT, self.NPIX_TOT), dtype=np.float32)
         self.mask = np.stack([inslice.mask_out for inslice in self.inslices])
 
-    def __call__(self, filename: str = None, stop: int = np.inf,
-                 timing: bool = False) -> None:
+    def __call__(self, filename: str = None, timing: bool = False,
+                 stop: int = np.inf) -> None:
         if timing: tstart = perf_counter()
         for X in range(self.NSUB):
             if stop > 0 and timing:
@@ -146,7 +146,7 @@ class OutSlice:
                     SubSlice(self, X, Y)()
                 stop -= 1
         if timing: print("Finished processing subslices",
-                         f"@ t = {perf_counter() - tstart:.6f} s")
+                         f"@ t = {perf_counter() - tstart:.6f} s", end="\n\n")
 
         self.data /= self.mask.sum(axis=0)
 

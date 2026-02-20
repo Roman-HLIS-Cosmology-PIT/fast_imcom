@@ -14,6 +14,51 @@ import numpy as np
 from numba import njit
 
 
+def bandlimited_rfft2(arr: np.array, bl: int) -> np.array:
+    """
+    Bandlimited forward real FFT in 2D.
+
+    Parameters
+    ----------
+    arr : np.array, shape : (nf, ny, nx), dtype : real
+        Array of nf functions of shape (ny, nx) to be FFT'ed.
+    bl : int
+        The bandlimit. Only modes between +/-bl will be saved.
+
+    Returns
+    -------
+    np.array, shape : (bl*2, bl+1), dtype : complex
+        Array of nf sets of forward real FFT results.
+    """
+
+    rft = np.fft.fft(np.fft.rfft(arr)[:, :, :bl+1], axis=-2)
+    return np.concatenate([rft[:, :bl, :], rft[:, -bl:, :]], axis=-2)
+
+
+def bandlimited_irfft2(rft: np.array, ny: int, nx: int) -> np.array:
+    """
+    Bandlimited inverse real FFT in 2D.
+
+    Parameters
+    ----------
+    rft : np.array, shape : (bl*2, bl+1), dtype : complex
+        Array of nf sets of forward real FFT results.
+    ny, nx : int, int
+        Shape of functions to be recovered via inverse FFT.
+
+    Returns
+    -------
+    np.array : shape : (nf, ny, nx), dtype : real
+        Array of nf functions of shape (ny, nx) from inverse FFT.
+    """
+
+    nf, bl_times2, bl_plus1 = rft.shape; bl = bl_plus1 - 1
+    return np.fft.irfft(np.concatenate([np.fft.ifft(np.concatenate(
+        [rft[:, :bl, :], np.zeros((nf, ny-bl_times2, bl_plus1), dtype=complex),
+         rft[:, -bl:, :]], axis=-2), axis=-2),
+         np.zeros((nf, ny, nx//2-bl_plus1))], axis=-1), n=nx)
+
+
 @njit
 def iD5512C_getw(w: np.array, fh: float) -> None:
     '''

@@ -9,6 +9,7 @@ pixelate_psf_2d : Pixelate a 2D (input) PSF.
 
 import numpy as np
 
+from .routine import bandlimited_rfft2, bandlimited_irfft2
 from .routine import compute_weights, adjust_weights, apply_weights
 
 
@@ -45,14 +46,12 @@ class PSFModel:
 
     @classmethod
     def get_weight_field(cls, psf_in: np.ndarray, psf_out: np.ndarray) -> np.ndarray:
-        # psf_in_t = np.fft.rfft2(np.fft.ifftshift(psf_in))
         psf_inp = cls.pixelate_psf_2d(psf_in)
-        psf_inp_t = np.fft.rfft2(np.fft.ifftshift(psf_inp))
-        psf_out_t = np.fft.rfft2(np.fft.ifftshift(psf_out))
+        psf_inp_tbl = bandlimited_rfft2(psf_inp[None], cls.NPIX-1)[0]
+        psf_out_tbl = bandlimited_rfft2(psf_out[None], cls.NPIX-1)[0]
 
-        weight_t = psf_out_t / psf_inp_t
-        weight_t[:, cls.NPIX:] = 0; weight_t[cls.NPIX:-cls.NPIX+1, :] = 0; weight_t.imag = 0
-        weight = np.fft.ifftshift(np.fft.irfft2(weight_t, s=(cls.NTOT, cls.NTOT)))
+        weight_tbl = psf_out_tbl / psf_inp_tbl; weight_tbl.imag = 0
+        weight = np.fft.ifftshift(bandlimited_irfft2(weight_tbl[None], cls.NTOT, cls.NTOT))[0]
         weight *= cls.SAMP**2
 
         return weight
@@ -68,8 +67,6 @@ class PSFModel:
 class SubSlice:
 
     ACCEPT = 8  # ACCEPTance radius
-    YXO = np.arange(PSFModel.NTOT//2 - (ACCEPT-1)*PSFModel.SAMP,
-                    PSFModel.NTOT//2 + (ACCEPT+1)*PSFModel.SAMP, PSFModel.SAMP, dtype=float)
     YXCTR = PSFModel.NTOT//2
 
     def __init__(self, outslice, X: int, Y: int) -> None:
@@ -77,8 +74,8 @@ class SubSlice:
         self.X, self.Y = X, Y
         NPIX_SUB = self.outslice.NPIX_SUB  # Shortcut.
         self.outxys = np.moveaxis(np.array(np.meshgrid(
-            np.arange(NPIX_SUB) + X*NPIX_SUB, np.arange(NPIX_SUB) + Y*NPIX_SUB)), 0, -1).reshape(-1, 2)
-        self.out_arr = np.zeros((self.ACCEPT*2, self.ACCEPT*2))
+            np.arange(NPIX_SUB) + X*NPIX_SUB,
+            np.arange(NPIX_SUB) + Y*NPIX_SUB)), 0, -1).reshape(-1, 2)
 
     def __call__(self, sigma: float = PSFModel.SIGMA["H158"] * 1.5) -> None:
         NPIX_SUB = self.outslice.NPIX_SUB  # Shortcut.

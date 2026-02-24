@@ -110,23 +110,23 @@ def iD5512C_getw(w: np.array, fh: float) -> None:
 
 
 @njit
-def reggridD5512C(infunc: np.array, xctr: float, yctr: float, SAMP: int,
+def reggridD5512C(infunc: np.array, x0: float, y0: float, SAMP: int,
                   ACCEPT: int, out_arr: np.array, circ_cut: bool = False) -> None:
     wx_ar = np.zeros((10,))
     wy_ar = np.zeros((10,))
-    xctri = np.int32(xctr)
-    yctri = np.int32(yctr)
-    iD5512C_getw(wx_ar, xctr-xctri-.5)
-    iD5512C_getw(wy_ar, yctr-yctri-.5)
+    x0i = np.int32(x0)
+    y0i = np.int32(y0)
+    iD5512C_getw(wx_ar, x0-x0i-.5)
+    iD5512C_getw(wy_ar, y0-y0i-.5)
 
     ACCEPT2 = ACCEPT*2
-    xzero = xctri - ACCEPT*SAMP
-    yzero = yctri - ACCEPT*SAMP
+    xmin = x0i - ACCEPT*SAMP
+    ymin = y0i - ACCEPT*SAMP
     cut = 0
 
     interp_vstrip = np.zeros((10+(ACCEPT2-1-cut)*SAMP,))
     for ix in range(ACCEPT2):
-        xi = xzero + ix*SAMP
+        xi = xmin + ix*SAMP
         if circ_cut:
             cut = ACCEPT - np.int32(np.rint(ACCEPT**2 -\
                 (ix-(ACCEPT-(ix<ACCEPT)))**2) ** 0.5)
@@ -134,7 +134,7 @@ def reggridD5512C(infunc: np.array, xctr: float, yctr: float, SAMP: int,
         for i in range(cut*SAMP, 10+(ACCEPT2-1)*SAMP):
             interp_vstrip[i] = 0.0
             for j in range(10):
-                interp_vstrip[i] += wx_ar[j] * infunc[yzero-4+i, xi-4+j]
+                interp_vstrip[i] += wx_ar[j] * infunc[ymin-4+i, xi-4+j]
 
         for iy in range(cut, ACCEPT2-cut):
             out_arr[iy, ix] = 0.0
@@ -148,8 +148,8 @@ def compute_weights(weights: np.ndarray, mask_out: np.ndarray, weight: np.ndarra
     for i in range(mask_out.shape[0]):
         if not mask_out[i]: continue
 
-        xctr, yctr = YXCTR + (1-inxys_frac[i])*SAMP
-        reggridD5512C(weight, xctr, yctr, SAMP, ACCEPT, weights[i])
+        x0, y0 = YXCTR + (1-inxys_frac[i])*SAMP
+        reggridD5512C(weight, x0, y0, SAMP, ACCEPT, weights[i])
 
 
 @njit

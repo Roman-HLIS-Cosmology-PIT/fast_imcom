@@ -89,7 +89,7 @@ class SubSlice:
             weight = PSFModel.get_weight_field(psf_in, psf_out)
 
             inxys = inslice.outpix2world2inpix(self.outslice.wcs, self.outxys)
-            inxys_frac, inxys_int = np.modf(inxys); inxys_int = inxys_int.astype(int)
+            inxys_frac, inxys_int = np.modf(inxys); inxys_int = inxys_int.astype(int) + 1
             x_min, y_min = np.min(inxys_int, axis=0) - self.ACCEPT
             x_max, y_max = np.max(inxys_int, axis=0) + self.ACCEPT
             indata, inmask = inslice.get_data_and_mask(x_min, x_max, y_min, y_max)

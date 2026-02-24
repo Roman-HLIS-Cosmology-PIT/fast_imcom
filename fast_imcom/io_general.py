@@ -42,7 +42,7 @@ class InSlice:
 
     def pad_data_and_mask(self) -> None:
         ACCEPT = SubSlice.ACCEPT  # Shortcut.
-        # For future extension: ((0,)*2,)*2 + ((ACCEPT,)*2,)*2
+        # For future extension: ((0,)*2,) + ((ACCEPT,)*2,)*2
         self.data = np.pad(self.data, ACCEPT, mode="constant", constant_values=0)
         self.mask = np.pad(self.mask, ACCEPT, mode="constant", constant_values=False)
 
@@ -122,6 +122,7 @@ class OutSlice:
     NSUB = 73  # Output slice size in subslices, similar to n1 in PyIMCOM.
     NPIX_SUB = 56  # Subslice size in pixels, similar to n2 in PyIMCOM.
     NPIX_TOT = NSUB * NPIX_SUB  # Output slice size in pixels.
+    SAVE_ALL = True  # Whether to save individual regridded images.
 
     @staticmethod
     def get_outwcs(outcrval: np.ndarray, outcrpix: list[float] = [2044.0, 2044.0],
@@ -147,8 +148,11 @@ class OutSlice:
                          f"@ t = {perf_counter() - tstart:.6f} s", end="\n\n")
 
         self.inslices = [inslice for inslice in self.inslices if inslice.is_relevant]
-        self.data = np.zeros((self.NPIX_TOT, self.NPIX_TOT), dtype=np.float32)
-        self.mask = np.stack([inslice.mask_out for inslice in self.inslices])
+        self.ninslice = len(self.inslices)
+        if self.SAVE_ALL:
+            self.data = np.zeros((self.ninslice, self.NPIX_TOT, self.NPIX_TOT), dtype=np.float32)
+        else:
+            self.data = np.zeros((self.NPIX_TOT, self.NPIX_TOT), dtype=np.float32)
 
     def __call__(self, filename: str = None, timing: bool = False,
                  stop: int = np.inf) -> None:
@@ -164,12 +168,18 @@ class OutSlice:
         if timing: print("Finished processing subslices",
                          f"@ t = {perf_counter() - tstart:.6f} s", end="\n\n")
 
-        self.data /= self.mask.sum(axis=0)
+        self.mask = np.stack([inslice.mask_out for inslice in self.inslices])
+        if not self.SAVE_ALL:
+            # self.data = np.sum(self.data, axis=0)
+            self.data /= self.mask.sum(axis=0)
 
         if filename is not None:
             self.writeto(filename)
 
     def writeto(self, filename: str) -> None:
-        hdu = fits.PrimaryHDU(self.data)
-        hdu.header.update(self.wcs.to_header())
-        hdu.writeto(filename, overwrite=True)
+        datahdu = fits.PrimaryHDU(self.data, header=self.wcs.to_header())
+        inputhdu = fits.TableHDU.from_columns([fits.Column(name="filename", \
+            array=[inslice.filename for inslice in self.inslices], format="A512", ascii=True)])
+        inputhdu.name = "INPUT"
+        maskhdu = fits.ImageHDU(self.mask.astype(np.uint8), name="MASK")
+        fits.HDUList([datahdu, inputhdu, maskhdu]).writeto(filename, overwrite=True)

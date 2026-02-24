@@ -83,7 +83,7 @@ class SubSlice:
     def __call__(self, sigma: float = PSFModel.SIGMA["H158"] * 1.5) -> None:
         NPIX_SUB = self.outslice.NPIX_SUB  # Shortcut.
 
-        for inslice in self.outslice.inslices:
+        for i_sl, inslice in enumerate(self.outslice.inslices):
             psf_in = inslice.get_psf()
             psf_out = PSFModel.psf_gaussian_2d(sigma)
             weight = PSFModel.get_weight_field(psf_in, psf_out)
@@ -103,7 +103,12 @@ class SubSlice:
             adjust_weights(weights, mask_out.ravel(), inmask, inxys_int, self.ACCEPT, self.LOSS_THR)
             inslice.mask_out[self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
                              self.X*NPIX_SUB:(self.X+1)*NPIX_SUB] = mask_out
+
             outdata = np.zeros((NPIX_SUB, NPIX_SUB))
             apply_weights(weights, mask_out.ravel(), outdata.ravel(), indata, inxys_int, self.ACCEPT)
-            self.outslice.data[self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
-                               self.X*NPIX_SUB:(self.X+1)*NPIX_SUB] += outdata
+            if self.outslice.SAVE_ALL:
+                self.outslice.data[i_sl, self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
+                                         self.X*NPIX_SUB:(self.X+1)*NPIX_SUB] = outdata
+            else:
+                self.outslice.data[self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
+                                   self.X*NPIX_SUB:(self.X+1)*NPIX_SUB] += outdata

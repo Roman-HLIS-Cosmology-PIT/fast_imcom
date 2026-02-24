@@ -1,6 +1,6 @@
-'''
-Numba version of pyimcom_croutines.c.
+'''Obsolete docstring, to be updated.
 
+Numba version of pyimcom_croutines.c.
 Slightly slower than C, used when furry-parakeet is not installed.
 
 Functions
@@ -111,8 +111,8 @@ def iD5512C_getw(w: np.array, fh: float) -> None:
 
 
 @njit
-def reggridD5512C(infunc: np.array, xctr: float, yctr: float,
-                  SAMP: int, ACCEPT: int, out_arr: np.array) -> None:
+def reggridD5512C(infunc: np.array, xctr: float, yctr: float, SAMP: int,
+                  ACCEPT: int, out_arr: np.array, circ_cut: bool = False) -> None:
     wx_ar = np.zeros((10,))
     wy_ar = np.zeros((10,))
     xctri = np.int32(xctr)
@@ -123,25 +123,21 @@ def reggridD5512C(infunc: np.array, xctr: float, yctr: float,
     ACCEPT2 = ACCEPT*2
     xzero = xctri - ACCEPT*SAMP
     yzero = yctri - ACCEPT*SAMP
+    cut = 0
 
-    # The (faster) code below is equivalent to:
-    # for ix in range(ACCEPT2):
-    #     xi = xzero + ix*SAMP
-    #     interp_vstrip = np.sum(infunc[yzero-4:yzero+(ACCEPT2-1)*SAMP+6,
-    #                                   xi-4:xi+6] * wx_ar, axis=1)
-    #     for iy in range(ACCEPT2):
-    #         out_arr[iy, ix] = np.sum(interp_vstrip[iy*SAMP:iy*SAMP+10] * wy_ar)
-
-    interp_vstrip = np.zeros((10+(ACCEPT2-1)*SAMP,))
+    interp_vstrip = np.zeros((10+(ACCEPT2-1-cut)*SAMP,))
     for ix in range(ACCEPT2):
         xi = xzero + ix*SAMP
+        if circ_cut:
+            cut = ACCEPT - np.int32(np.rint(ACCEPT**2 -\
+                (ix-(ACCEPT-(ix<ACCEPT)))**2) ** 0.5)
 
-        for i in range(10+(ACCEPT2-1)*SAMP):
+        for i in range(cut*SAMP, 10+(ACCEPT2-1)*SAMP):
             interp_vstrip[i] = 0.0
             for j in range(10):
                 interp_vstrip[i] += wx_ar[j] * infunc[yzero-4+i, xi-4+j]
 
-        for iy in range(ACCEPT2):
+        for iy in range(cut, ACCEPT2-cut):
             out_arr[iy, ix] = 0.0
             for i in range(10):
                 out_arr[iy, ix] += interp_vstrip[iy*SAMP+i] * wy_ar[i]

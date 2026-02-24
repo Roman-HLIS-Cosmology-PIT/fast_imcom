@@ -1,4 +1,6 @@
-"""PSF utilities in two dimensions.
+"""Obsolete docstring, to be updated.
+
+PSF utilities in two dimensions.
 
 Functions
 ---------

@@ -21,6 +21,7 @@ from .psfutil import PSFModel, SubSlice
 class InSlice:
 
     NSIDE = 4088
+    NLAYER = 1  # Number of input layers.
 
     def __init__(self, filename: str, psfmodel: PSFModel = None,
                  loaddata: bool = True, paddata: bool = True) -> None:
@@ -35,15 +36,16 @@ class InSlice:
             self.inx_min = self.iny_min = 0
 
     def load_data_and_mask(self) -> None:
+        self.data = np.zeros((InSlice.NLAYER, InSlice.NSIDE, InSlice.NSIDE), dtype=np.float32)
         with fits.open(self.filename) as f:
             self.wcs = wcs.WCS(f["WFI01"].header)
-            self.data = f["WFI01"].data.astype(np.float32)
-        self.mask = np.ones((self.NSIDE, self.NSIDE), dtype=bool)
+            self.data[0] = f["WFI01"].data.astype(np.float32)
+        self.mask = np.ones((InSlice.NSIDE, InSlice.NSIDE), dtype=bool)
 
     def pad_data_and_mask(self) -> None:
         ACCEPT = SubSlice.ACCEPT  # Shortcut.
-        # For future extension: ((0,)*2,) + ((ACCEPT,)*2,)*2
-        self.data = np.pad(self.data, ACCEPT, mode="constant", constant_values=0)
+        self.data = np.pad(self.data, ((0,)*2,) + ((ACCEPT,)*2,)*2,
+                           mode="constant", constant_values=0)
         self.mask = np.pad(self.mask, ACCEPT, mode="constant", constant_values=False)
 
         self.NSIDE = InSlice.NSIDE + ACCEPT*2
@@ -106,15 +108,15 @@ class InSlice:
 
             self.inx_min += out_inx_min; self.iny_min += out_iny_min
             self.wcs.wcs.crpix -= np.array([out_inx_min, out_iny_min])
-            self.data = self.data[out_iny_min:out_iny_max+1, out_inx_min:out_inx_max+1].copy()
-            self.mask = self.mask[out_iny_min:out_iny_max+1, out_inx_min:out_inx_max+1].copy()
+            self.data = self.data[:, out_iny_min:out_iny_max+1, out_inx_min:out_inx_max+1].copy()
+            self.mask = self.mask[   out_iny_min:out_iny_max+1, out_inx_min:out_inx_max+1].copy()
 
     def get_psf(self, x: float = -np.inf, y: float = -np.inf) -> np.ndarray:
         return self.psfmodel(x + self.inx_min, y + self.iny_min)
 
     def get_data_and_mask(self, x_min, x_max, y_min, y_max) -> tuple[np.ndarray, np.ndarray]:
-        return (self.data[y_min:y_max+1, x_min:x_max+1].copy(),
-                self.mask[y_min:y_max+1, x_min:x_max+1].copy())
+        return (self.data[:, y_min:y_max+1, x_min:x_max+1].copy(),
+                self.mask[   y_min:y_max+1, x_min:x_max+1].copy())
 
 
 class OutSlice:
@@ -150,9 +152,10 @@ class OutSlice:
         self.inslices = [inslice for inslice in self.inslices if inslice.is_relevant]
         self.ninslice = len(self.inslices)
         if self.SAVE_ALL:
-            self.data = np.zeros((self.ninslice, self.NPIX_TOT, self.NPIX_TOT), dtype=np.float32)
+            self.data = np.zeros((InSlice.NLAYER, self.ninslice,
+                                  self.NPIX_TOT, self.NPIX_TOT), dtype=np.float32)
         else:
-            self.data = np.zeros((self.NPIX_TOT, self.NPIX_TOT), dtype=np.float32)
+            self.data = np.zeros((InSlice.NLAYER, self.NPIX_TOT, self.NPIX_TOT), dtype=np.float32)
 
     def __call__(self, filename: str = None, timing: bool = False,
                  stop: int = np.inf) -> None:
@@ -169,9 +172,8 @@ class OutSlice:
                          f"@ t = {perf_counter() - tstart:.6f} s", end="\n\n")
 
         self.mask = np.stack([inslice.mask_out for inslice in self.inslices])
-        if not self.SAVE_ALL:
-            # self.data = np.sum(self.data, axis=0)
-            self.data /= self.mask.sum(axis=0)
+        if not self.SAVE_ALL: self.data /= self.mask.sum(axis=0)
+        if InSlice.NLAYER == 1: self.data = self.data[0]
 
         if filename is not None:
             self.writeto(filename)

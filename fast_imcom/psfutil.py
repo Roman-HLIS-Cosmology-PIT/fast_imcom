@@ -104,11 +104,12 @@ class SubSlice:
             inslice.mask_out[self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
                              self.X*NPIX_SUB:(self.X+1)*NPIX_SUB] = mask_out
 
-            outdata = np.zeros((NPIX_SUB, NPIX_SUB))
-            apply_weights(weights, mask_out.ravel(), outdata.ravel(), indata, inxys_int, self.ACCEPT)
+            outdata = np.zeros((inslice.NLAYER, NPIX_SUB, NPIX_SUB))
+            apply_weights(weights, mask_out.ravel(), outdata.reshape(inslice.NLAYER, -1),
+                          indata, inxys_int, self.ACCEPT)
             if self.outslice.SAVE_ALL:
-                self.outslice.data[i_sl, self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
-                                         self.X*NPIX_SUB:(self.X+1)*NPIX_SUB] = outdata
+                self.outslice.data[:, i_sl, self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
+                                            self.X*NPIX_SUB:(self.X+1)*NPIX_SUB] = outdata
             else:
-                self.outslice.data[self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
-                                   self.X*NPIX_SUB:(self.X+1)*NPIX_SUB] += outdata
+                self.outslice.data[:, self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
+                                      self.X*NPIX_SUB:(self.X+1)*NPIX_SUB] += outdata

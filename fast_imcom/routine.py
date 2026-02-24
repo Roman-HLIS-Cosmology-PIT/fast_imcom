@@ -128,8 +128,8 @@ def reggridD5512C(infunc: np.array, x0: float, y0: float, SAMP: int,
     for ix in range(ACCEPT2):
         xi = xmin + ix*SAMP
         if circ_cut:
-            cut = ACCEPT - np.int32(np.rint(ACCEPT**2 -\
-                (ix-(ACCEPT-(ix<ACCEPT)))**2) ** 0.5)
+            cut = (ACCEPT-1) - np.int32(((ACCEPT-.5)**2 -\
+                (ix-(ACCEPT-(ix<ACCEPT)))**2) ** .5)
 
         for i in range(cut*SAMP, 10+(ACCEPT2-1)*SAMP):
             interp_vstrip[i] = 0.0

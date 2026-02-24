@@ -28,12 +28,12 @@ class InSlice:
         self.filename = filename
         self.psfmodel = psfmodel
 
+        self.inx_min = self.iny_min = 0
         if loaddata:
             self.load_data_and_mask()
             if paddata: self.pad_data_and_mask()
         else:
             self.wcs = self.data = self.mask = None
-            self.inx_min = self.iny_min = 0
 
     def load_data_and_mask(self) -> None:
         self.data = np.zeros((InSlice.NLAYER, InSlice.NSIDE, InSlice.NSIDE), dtype=np.float32)
@@ -127,7 +127,7 @@ class OutSlice:
     SAVE_ALL = True  # Whether to save individual regridded images.
 
     @staticmethod
-    def get_outwcs(outcrval: np.ndarray, outcrpix: list[float] = [2044.0, 2044.0],
+    def get_outwcs(outcrval: np.ndarray, outcrpix: list[float, float] = [2044.0, 2044.0],
                    outcdelt: float = 0.11 * u.arcsec.to("degree") / 2.0) -> wcs.WCS:
         outwcs = wcs.WCS(naxis=2)
         outwcs.wcs.ctype = ["RA---STG", "DEC--STG"]
@@ -157,8 +157,7 @@ class OutSlice:
         else:
             self.data = np.zeros((InSlice.NLAYER, self.NPIX_TOT, self.NPIX_TOT), dtype=np.float32)
 
-    def __call__(self, filename: str = None, timing: bool = False,
-                 stop: int = np.inf) -> None:
+    def __call__(self, filename: str = None, timing: bool = False, stop: int = np.inf) -> None:
         if timing: tstart = perf_counter()
         for X in range(self.NSUB):
             if stop > 0 and timing:
@@ -174,9 +173,7 @@ class OutSlice:
         self.mask = np.stack([inslice.mask_out for inslice in self.inslices])
         if not self.SAVE_ALL: self.data /= self.mask.sum(axis=0)
         if InSlice.NLAYER == 1: self.data = self.data[0]
-
-        if filename is not None:
-            self.writeto(filename)
+        if filename is not None: self.writeto(filename)
 
     def writeto(self, filename: str) -> None:
         datahdu = fits.PrimaryHDU(self.data, header=self.wcs.to_header())

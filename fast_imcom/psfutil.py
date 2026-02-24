@@ -4,8 +4,8 @@ PSF utilities in two dimensions.
 
 Functions
 ---------
-psf_gaussian_2d : Generate a 2D Gaussian PSF.
-pixelate_psf_2d : Pixelate a 2D (input) PSF.
+psf_gaussian : Generate a 2D Gaussian PSF.
+pixelate_psf : Pixelate a 2D (input) PSF.
 
 """
 
@@ -20,7 +20,7 @@ class PSFModel:
     NPIX = 48  # PSF array size in native pixels.
     SAMP = 4  # Oversampling rate of PSF arrays.
     NTOT = NPIX * SAMP  # PSF array size in oversampled pixels.
-    YXCTR = NTOT // 2  # PSF array center in oversampled pixels.
+    YXCTR = NTOT / 2  # PSF array center in oversampled pixels.
 
     SIGMA_TO_FWHM = 2 * np.sqrt(2 * np.log(2))
     SIGMA = {
@@ -32,7 +32,7 @@ class PSFModel:
     }
 
     @classmethod
-    def psf_gaussian_2d(cls, sigma: float) -> np.ndarray:
+    def psf_gaussian(cls, sigma: float) -> np.ndarray:
         """Generate a 2D Gaussian PSF."""
         x, y = np.meshgrid(np.arange(-cls.NTOT//2, cls.NTOT//2) / (sigma*cls.SAMP),
                            np.arange(-cls.NTOT//2, cls.NTOT//2) / (sigma*cls.SAMP))
@@ -40,7 +40,7 @@ class PSFModel:
                 / (2.0*np.pi * sigma**2)
 
     @classmethod
-    def pixelate_psf_2d(cls, psf: np.ndarray) -> np.ndarray:
+    def pixelate_psf(cls, psf: np.ndarray) -> np.ndarray:
         """Pixelate a 2D (input) PSF."""
         k = np.linspace(0, 1, cls.NTOT, endpoint=False)
         k[-(cls.NTOT//2):] -= 1; k *= cls.SAMP
@@ -49,15 +49,13 @@ class PSFModel:
 
     @classmethod
     def get_weight_field(cls, psf_in: np.ndarray, psf_out: np.ndarray) -> np.ndarray:
-        psf_inp = cls.pixelate_psf_2d(psf_in)
+        psf_inp = cls.pixelate_psf(psf_in)
         psf_inp_tbl = bandlimited_rfft2(psf_inp[None], cls.NPIX-1)[0]
         psf_out_tbl = bandlimited_rfft2(psf_out[None], cls.NPIX-1)[0]
 
         weight_tbl = psf_out_tbl / psf_inp_tbl; weight_tbl.imag = 0
-        weight = np.fft.ifftshift(bandlimited_irfft2(weight_tbl[None], cls.NTOT, cls.NTOT))[0]
-        weight *= cls.SAMP**2
-
-        return weight
+        return np.fft.ifftshift(bandlimited_irfft2(
+            weight_tbl[None], cls.NTOT, cls.NTOT))[0] * cls.SAMP**2
 
     def __init__(self, psfdata: np.ndarray) -> None:
         self.psfdata = psfdata
@@ -69,8 +67,8 @@ class PSFModel:
 
 class SubSlice:
 
-    ACCEPT = 8  # ACCEPTance radius
-    LOSS_THR = 0.001  # Threshold for total lost weight.
+    ACCEPT = 8  # Acceptance radius in native pixels.
+    LOSS_THR = 0.001  # Threshold for sum of absolute lost weights.
 
     def __init__(self, outslice, X: int, Y: int) -> None:
         self.outslice = outslice
@@ -85,7 +83,7 @@ class SubSlice:
 
         for i_sl, inslice in enumerate(self.outslice.inslices):
             psf_in = inslice.get_psf()
-            psf_out = PSFModel.psf_gaussian_2d(sigma)
+            psf_out = PSFModel.psf_gaussian(sigma)
             weight = PSFModel.get_weight_field(psf_in, psf_out)
 
             inxys = inslice.outpix2world2inpix(self.outslice.wcs, self.outxys)

@@ -10,6 +10,7 @@ pixelate_psf : Pixelate a 2D (input) PSF.
 """
 
 import numpy as np
+from astropy.wcs.utils import local_partial_pixel_derivatives
 
 from .routine import bandlimited_rfft2, bandlimited_irfft2
 from .routine import compute_weights, adjust_weights, apply_weights
@@ -32,12 +33,13 @@ class PSFModel:
     }
 
     @classmethod
-    def psf_gaussian(cls, sigma: float) -> np.ndarray:
+    def psf_gaussian(cls, sigma: float, invD: np.ndarray = np.diag(np.ones(2))) -> np.ndarray:
         """Generate a 2D Gaussian PSF."""
-        x, y = np.meshgrid(np.arange(-cls.NTOT//2, cls.NTOT//2) / (sigma*cls.SAMP),
-                           np.arange(-cls.NTOT//2, cls.NTOT//2) / (sigma*cls.SAMP))
-        return np.exp(-0.5 * (np.square(x) + np.square(y)))\
-                / (2.0*np.pi * sigma**2)
+        xy = np.flip(np.mgrid[-cls.YXCTR:cls.NTOT-1-cls.YXCTR:cls.NTOT*1j,
+                              -cls.YXCTR:cls.NTOT-1-cls.YXCTR:cls.NTOT*1j], axis=0)
+        invSigma = invD.T @ np.diag(np.ones(2)/(sigma*cls.SAMP)**2) @ invD
+        return np.exp(-0.5 * np.einsum("lyx,lr,ryx->yx", xy, invSigma, xy))\
+                / (2.0*np.pi * sigma**2)  # Not sure about normalization, to be tested later.
 
     @classmethod
     def pixelate_psf(cls, psf: np.ndarray) -> np.ndarray:
@@ -70,6 +72,11 @@ class SubSlice:
     ACCEPT = 8  # Acceptance radius in native pixels.
     LOSS_THR = 0.001  # Threshold for sum of absolute lost weights.
 
+    @staticmethod
+    def get_dworld_dpixel(slice, x: float, y: float) -> np.ndarray:
+        return local_partial_pixel_derivatives(
+            slice.wcs, x-0.5, y-0.5) / slice.scale
+
     def __init__(self, outslice, X: int, Y: int) -> None:
         self.outslice = outslice
         self.X, self.Y = X, Y
@@ -77,13 +84,17 @@ class SubSlice:
         self.outxys = np.moveaxis(np.array(np.meshgrid(
             np.arange(NPIX_SUB) + X*NPIX_SUB,
             np.arange(NPIX_SUB) + Y*NPIX_SUB)), 0, -1).reshape(-1, 2)
+        self.ctr = np.array([(X+0.5)*NPIX_SUB-0.5, (Y+0.5)*NPIX_SUB-0.5])
 
     def __call__(self, sigma: float = PSFModel.SIGMA["H158"] * 1.5) -> None:
         NPIX_SUB = self.outslice.NPIX_SUB  # Shortcut.
 
         for i_sl, inslice in enumerate(self.outslice.inslices):
-            psf_in = inslice.get_psf()
-            psf_out = PSFModel.psf_gaussian(sigma)
+            ctr_in = inslice.outpix2world2inpix(self.outslice.wcs, self.ctr[None])[0]
+            psf_in = inslice.get_psf(*ctr_in)
+            psf_out = PSFModel.psf_gaussian(sigma, invD=np.linalg.inv(
+                SubSlice.get_dworld_dpixel(self.outslice, *self.ctr)) @\
+                SubSlice.get_dworld_dpixel(inslice, *ctr_in))
             weight = PSFModel.get_weight_field(psf_in, psf_out)
 
             inxys = inslice.outpix2world2inpix(self.outslice.wcs, self.outxys)

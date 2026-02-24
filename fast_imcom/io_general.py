@@ -33,13 +33,15 @@ class InSlice:
             self.load_data_and_mask()
             if paddata: self.pad_data_and_mask()
         else:
-            self.wcs = self.data = self.mask = None
+            self.wcs = self.scale = None
+            self.data = self.mask = None
 
     def load_data_and_mask(self) -> None:
         self.data = np.zeros((InSlice.NLAYER, InSlice.NSIDE, InSlice.NSIDE), dtype=np.float32)
         with fits.open(self.filename) as f:
             self.wcs = wcs.WCS(f["WFI01"].header)
             self.data[0] = f["WFI01"].data.astype(np.float32)
+        self.scale = np.abs(self.wcs.wcs.cd[0, 0])  # Pixel scale in degrees.
         self.mask = np.ones((InSlice.NSIDE, InSlice.NSIDE), dtype=bool)
 
     def pad_data_and_mask(self) -> None:
@@ -138,6 +140,7 @@ class OutSlice:
 
     def __init__(self, wcs: wcs.WCS, inslices: list[InSlice], timing: bool = False) -> None:
         self.wcs = wcs
+        self.scale = np.abs(wcs.wcs.cdelt[0])  # Pixel scale in degrees.
         self.inslices = inslices
 
         if timing: tstart = perf_counter()

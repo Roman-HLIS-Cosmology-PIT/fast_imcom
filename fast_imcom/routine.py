@@ -116,8 +116,8 @@ def reggridD5512C(infunc: np.array, x0: float, y0: float, SAMP: int,
     wy_ar = np.zeros((10,))
     x0i = np.int32(x0)
     y0i = np.int32(y0)
-    iD5512C_getw(wx_ar, x0-x0i-.5)
-    iD5512C_getw(wy_ar, y0-y0i-.5)
+    iD5512C_getw(wx_ar, x0-x0i-0.5)
+    iD5512C_getw(wy_ar, y0-y0i-0.5)
 
     ACCEPT2 = ACCEPT*2
     xmin = x0i - ACCEPT*SAMP
@@ -128,8 +128,8 @@ def reggridD5512C(infunc: np.array, x0: float, y0: float, SAMP: int,
     for ix in range(ACCEPT2):
         xi = xmin + ix*SAMP
         if circ_cut:
-            cut = (ACCEPT-1) - np.int32(((ACCEPT-.5)**2 -\
-                (ix-(ACCEPT-(ix<ACCEPT)))**2) ** .5)
+            cut = (ACCEPT-1) - np.int32(((ACCEPT-0.5)**2 -\
+                (ix-(ACCEPT-(ix<ACCEPT)))**2) ** 0.5)
 
         for i in range(cut*SAMP, 10+(ACCEPT2-1)*SAMP):
             interp_vstrip[i] = 0.0

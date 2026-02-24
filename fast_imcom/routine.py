@@ -15,8 +15,7 @@ from numba import njit
 
 
 def bandlimited_rfft2(arr: np.array, bl: int) -> np.array:
-    """
-    Bandlimited forward real FFT in 2D.
+    """Bandlimited forward real FFT in 2D.
 
     Parameters
     ----------
@@ -27,8 +26,9 @@ def bandlimited_rfft2(arr: np.array, bl: int) -> np.array:
 
     Returns
     -------
-    np.array, shape : (bl*2, bl+1), dtype : complex
+    np.array, shape : (nf, bl*2, bl+1), dtype : complex
         Array of nf sets of forward real FFT results.
+
     """
 
     rft = np.fft.fft(np.fft.rfft(arr)[:, :, :bl+1], axis=-2)
@@ -36,12 +36,11 @@ def bandlimited_rfft2(arr: np.array, bl: int) -> np.array:
 
 
 def bandlimited_irfft2(rft: np.array, ny: int, nx: int) -> np.array:
-    """
-    Bandlimited inverse real FFT in 2D.
+    """Bandlimited inverse real FFT in 2D.
 
     Parameters
     ----------
-    rft : np.array, shape : (bl*2, bl+1), dtype : complex
+    rft : np.array, shape : (nf, bl*2, bl+1), dtype : complex
         Array of nf sets of forward real FFT results.
     ny, nx : int, int
         Shape of functions to be recovered via inverse FFT.
@@ -50,6 +49,7 @@ def bandlimited_irfft2(rft: np.array, ny: int, nx: int) -> np.array:
     -------
     np.array : shape : (nf, ny, nx), dtype : real
         Array of nf functions of shape (ny, nx) from inverse FFT.
+
     """
 
     nf, bl_times2, bl_plus1 = rft.shape; bl = bl_plus1 - 1
@@ -61,8 +61,7 @@ def bandlimited_irfft2(rft: np.array, ny: int, nx: int) -> np.array:
 
 @njit
 def iD5512C_getw(w: np.array, fh: float) -> None:
-    '''
-    Interpolation code written by Python.
+    '''Interpolation code written by Python.
 
     Parameters
     ----------
@@ -73,7 +72,7 @@ def iD5512C_getw(w: np.array, fh: float) -> None:
 
     Returns
     -------
-    None.
+    None
 
     '''
 
@@ -159,19 +158,18 @@ def adjust_weights(weights: np.ndarray, mask_out: np.ndarray, inmask: np.ndarray
     for i in range(mask_out.shape[0]):
         if not mask_out[i]: continue
 
-        loss = np.sum(np.abs(weights[i]) *\
-            (1-inmask[inxys_int[i, 1]-ACCEPT:inxys_int[i, 1]+ACCEPT,
-                      inxys_int[i, 0]-ACCEPT:inxys_int[i, 0]+ACCEPT]))
-        if loss == 0.0: continue
-
-        loss_frac = loss / weights[i].sum()
-        if loss_frac > LOSS_THR:
+        inmask_i = inmask[inxys_int[i, 1]-ACCEPT:inxys_int[i, 1]+ACCEPT,
+                          inxys_int[i, 0]-ACCEPT:inxys_int[i, 0]+ACCEPT]
+        loss_abs = np.sum(np.abs(weights[i]) * (1-inmask_i))
+        if loss_abs >= LOSS_THR:
             mask_out[i] = False
             continue
 
-        weights[i] *= inmask[inxys_int[i, 1]-ACCEPT:inxys_int[i, 1]+ACCEPT,
-                             inxys_int[i, 0]-ACCEPT:inxys_int[i, 0]+ACCEPT]
-        weights[i] *= 1 / (1 - loss_frac)
+        if loss_abs == 0.0: continue
+        weights[i] *= inmask_i
+        # Not sure about normalization, to be tested later.
+        # loss_frac = np.sum(weights[i] * (1-inmask_i)) / np.sum(weights[i])
+        # weights[i] *= 1 / (1 - loss_frac)
 
 
 @njit

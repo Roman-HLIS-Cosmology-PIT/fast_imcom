@@ -3,9 +3,11 @@
 import sys; sys.path.append("..")
 
 import numpy as np
+from astropy.io import fits
 
-from pyimcom.config import Config
+from pyimcom.config import Settings as Stn, Config
 from pyimcom.coadd import InImage, Block
+from pyimcom.layer import get_all_data
 from .psfutil import PSFModel
 from .io_general import InSlice, OutSlice
 
@@ -43,3 +45,26 @@ class PyPSFModel(PSFModel):
         # pixels are in C/Python convention since pixloc was set this way
         return np.einsum('a,aij->ij', lpoly, self.psfdata)
         # Not calling InImage.smooth_and_pad because of PSFModel.pixelate_psf.
+
+
+class PyInSlice(InSlice):
+
+    def __init__(self, blk: Block, idsca: tuple[int, int],
+                 loaddata: bool = True, paddata: bool = True) -> None:
+        self.inimage = InImage(blk, idsca)
+        cfg = self.inimage.blk.cfg  # Shortcut.
+        with fits.open(cfg.inpsf_path + "/" + InImage.psf_filename(
+            cfg.inpsf_format, idsca[0])) as f:
+            psfmodel = PyPSFModel(f[idsca[1]].data)
+        super().__init__(self.inimage.infile, psfmodel, loaddata, paddata)
+
+    def load_data_and_mask(self) -> None:
+        self.wcs = self.inimage.wcs
+        self.scale = Stn.pixscale_native
+        get_all_data(self.inimage)
+        self.data = self.inimage.data
+
+        cfg = self.inimage.blk.cfg  # Shortcut.
+        assert cfg.permanent_mask is None and cfg.cr_mask_rate == 0.0
+        self.mask = np.ones((InSlice.NSIDE, InSlice.NSIDE), dtype=bool)
+        del self.inimage

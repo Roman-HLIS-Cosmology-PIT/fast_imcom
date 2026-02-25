@@ -68,3 +68,45 @@ class PyInSlice(InSlice):
         assert cfg.permanent_mask is None and cfg.cr_mask_rate == 0.0
         self.mask = np.ones((InSlice.NSIDE, InSlice.NSIDE), dtype=bool)
         del self.inimage
+
+
+class PyOutSlice(OutSlice):
+
+    def __init__(self, cfg: FConfig = None, this_sub: int = 0,
+                 timing: bool = False, run_coadd: bool = True) -> None:
+        self.cfg = cfg if cfg is not None else FConfig()
+        self.this_sub = this_sub
+        self.blk = Block(self.cfg, this_sub, run_coadd=False)
+        self.blk.parse_config()
+
+        self.process_input_images()
+        inslices = [PyInSlice(self.blk, idsca) for idsca in self.blk.obslist]
+        super().__init__(self.blk.outwcs, inslices, timing)
+        del self.blk
+
+        ibx, iby = divmod(self.this_sub, self.cfg.nblock)
+        filename = f"{self.cfg.outstem}_{ibx:02d}_{iby:02d}.fits"
+        if run_coadd: self(filename, timing, (self.cfg.stoptile+3)//4)
+
+    def process_input_images(self) -> None:
+        search_radius = Stn.sca_sidelength / np.sqrt(2.) / Stn.degree \
+                      + self.cfg.NsideP * self.cfg.dtheta / np.sqrt(2.)
+        self.blk._get_obs_cover(search_radius)
+        print(len(self.blk.obslist), 'observations within range ({:7.5f} deg)'.format(search_radius),
+              'filter =', self.cfg.use_filter, '({:s})'.format(Stn.RomanFilters[self.cfg.use_filter]))
+
+        self.blk.inimages = [InImage(self, idsca) for idsca in self.blk.obslist]
+        any_exists = False
+        print('The observations -->')
+        print('  OBSID SCA  RAWFI    DECWFI   PA     RASCA   DECSCA       FILE (x=missing)')
+        for idsca, inimage in zip(self.blk.obslist, self.blk.inimages):
+            cpos = '                 '
+            if inimage.exists_:
+                any_exists = True
+                cpos_coord = inimage.inwcs.all_pix2world([[Stn.sca_ctrpix, Stn.sca_ctrpix]], 0)[0]
+                cpos = '{:8.4f} {:8.4f}'.format(cpos_coord[0], cpos_coord[1])
+            print('{:7d} {:2d} {:8.4f} {:8.4f} {:6.2f} {:s} {:s} {:s}'.format(
+                idsca[0], idsca[1], self.blk.obsdata['ra'][idsca[0]], self.blk.obsdata['dec'][idsca[0]],
+                self.blk.obsdata['pa'][idsca[0]], cpos, ' ' if inimage.exists_ else 'x', inimage.infile))
+        print()
+        assert any_exists, 'No candidate observations found to stack. Exiting now.'

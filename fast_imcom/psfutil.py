@@ -86,7 +86,7 @@ class SubSlice:
             np.arange(NPIX_SUB) + Y*NPIX_SUB)), 0, -1).reshape(-1, 2)
         self.ctr = np.array([(X+0.5)*NPIX_SUB-0.5, (Y+0.5)*NPIX_SUB-0.5])
 
-    def __call__(self, sigma: float = PSFModel.SIGMA["H158"] * 1.5) -> None:
+    def __call__(self, sigma: float) -> None:
         NPIX_SUB = self.outslice.NPIX_SUB  # Shortcut.
 
         for i_sl, inslice in enumerate(self.outslice.inslices):

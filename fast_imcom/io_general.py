@@ -126,16 +126,18 @@ class OutSlice:
     NSUB = 73  # Output slice size in subslices, similar to n1 in PyIMCOM.
     NPIX_SUB = 56  # Subslice size in pixels, similar to n2 in PyIMCOM.
     NPIX_TOT = NSUB * NPIX_SUB  # Output slice size in pixels.
+    CDELT = 0.11 * u.arcsec.to("degree") / 2.0  # Output pixel scale in degrees.
+    SIGMA = PSFModel.SIGMA["H158"] * 1.5  # Target output PSF width in native pixels.
     SAVE_ALL = True  # Whether to save individual regridded images.
 
-    @staticmethod
-    def get_outwcs(outcrval: np.ndarray, outcrpix: list[float, float] = [2044.0, 2044.0],
-                   outcdelt: float = 0.11 * u.arcsec.to("degree") / 2.0) -> wcs.WCS:
+    @classmethod
+    def get_outwcs(cls, outcrval: np.ndarray, outcrpix: list[float, float] = None,
+                   outcdelt: list[float, float] = None) -> wcs.WCS:
         outwcs = wcs.WCS(naxis=2)
         outwcs.wcs.ctype = ["RA---STG", "DEC--STG"]
         outwcs.wcs.crval = outcrval
-        outwcs.wcs.crpix = outcrpix
-        outwcs.wcs.cdelt = [-outcdelt, outcdelt]
+        outwcs.wcs.crpix = outcrpix if outcrpix is not None else [cls.NPIX_TOT/2]*2
+        outwcs.wcs.cdelt = outcdelt if outcdelt is not None else [-cls.CDELT, cls.CDELT]
         return outwcs
 
     def __init__(self, wcs: wcs.WCS, inslices: list[InSlice], timing: bool = False) -> None:
@@ -168,7 +170,7 @@ class OutSlice:
                       f"@ t = {perf_counter() - tstart:.6f} s")
             for Y in range(self.NSUB):
                 if stop > 0:
-                    SubSlice(self, X, Y)()
+                    SubSlice(self, X, Y)(sigma=self.SIGMA)
                 stop -= 1
         if timing: print("Finished processing subslices",
                          f"@ t = {perf_counter() - tstart:.6f} s", end="\n\n")

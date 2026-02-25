@@ -43,7 +43,7 @@ class PyPSFModel(PSFModel):
     def __call__(self, x: float = -np.inf, y: float = -np.inf) -> np.ndarray:
         lpoly = InImage.LPolyArr(1, (x-2043.5)/2044.0, (y-2043.5)/2044.0)
         # pixels are in C/Python convention since pixloc was set this way
-        return np.einsum('a,aij->ij', lpoly, self.psfdata)
+        return np.einsum("a,aij->ij", lpoly, self.psfdata)
         # Not calling InImage.smooth_and_pad because of PSFModel.pixelate_psf.
 
 
@@ -52,6 +52,7 @@ class PyInSlice(InSlice):
     def __init__(self, blk: Block, idsca: tuple[int, int],
                  loaddata: bool = True, paddata: bool = True) -> None:
         self.inimage = InImage(blk, idsca)
+        # print(self.inimage.infile, "exists =", self.inimage.exists_)
         cfg = self.inimage.blk.cfg  # Shortcut.
         with fits.open(cfg.inpsf_path + "/" + InImage.psf_filename(
             cfg.inpsf_format, idsca[0])) as f:
@@ -59,10 +60,10 @@ class PyInSlice(InSlice):
         super().__init__(self.inimage.infile, psfmodel, loaddata, paddata)
 
     def load_data_and_mask(self) -> None:
-        self.wcs = self.inimage.wcs
+        self.wcs = self.inimage.inwcs
         self.scale = Stn.pixscale_native
         get_all_data(self.inimage)
-        self.data = self.inimage.data
+        self.data = self.inimage.indata
 
         cfg = self.inimage.blk.cfg  # Shortcut.
         assert cfg.permanent_mask is None and cfg.cr_mask_rate == 0.0
@@ -85,28 +86,34 @@ class PyOutSlice(OutSlice):
         del self.blk
 
         ibx, iby = divmod(self.this_sub, self.cfg.nblock)
-        filename = f"{self.cfg.outstem}_{ibx:02d}_{iby:02d}.fits"
-        if run_coadd: self(filename, timing, (self.cfg.stoptile+3)//4)
+        self.filename = f"{self.cfg.outstem}_{ibx:02d}_{iby:02d}.fits"
+        if run_coadd: self(self.filename, timing, (self.cfg.stoptile+3)//4)
 
     def process_input_images(self) -> None:
-        search_radius = Stn.sca_sidelength / np.sqrt(2.) / Stn.degree \
-                      + self.cfg.NsideP * self.cfg.dtheta / np.sqrt(2.)
+        search_radius = Stn.sca_sidelength / np.sqrt(2.0) / Stn.degree \
+                      + self.cfg.NsideP * self.cfg.dtheta / np.sqrt(2.0)
         self.blk._get_obs_cover(search_radius)
-        print(len(self.blk.obslist), 'observations within range ({:7.5f} deg)'.format(search_radius),
-              'filter =', self.cfg.use_filter, '({:s})'.format(Stn.RomanFilters[self.cfg.use_filter]))
+        print(len(self.blk.obslist), "observations within range ({:7.5f} deg)".format(search_radius),
+              "filter =", self.cfg.use_filter, "({:s})".format(Stn.RomanFilters[self.cfg.use_filter]))
 
-        self.blk.inimages = [InImage(self, idsca) for idsca in self.blk.obslist]
+        self.blk.inimages = [InImage(self.blk, idsca) for idsca in self.blk.obslist]
         any_exists = False
-        print('The observations -->')
-        print('  OBSID SCA  RAWFI    DECWFI   PA     RASCA   DECSCA       FILE (x=missing)')
+        print("The observations -->")
+        print("  OBSID SCA  RAWFI    DECWFI   PA     RASCA   DECSCA       FILE (x=missing)")
         for idsca, inimage in zip(self.blk.obslist, self.blk.inimages):
-            cpos = '                 '
+            cpos = "                 "
             if inimage.exists_:
                 any_exists = True
                 cpos_coord = inimage.inwcs.all_pix2world([[Stn.sca_ctrpix, Stn.sca_ctrpix]], 0)[0]
-                cpos = '{:8.4f} {:8.4f}'.format(cpos_coord[0], cpos_coord[1])
-            print('{:7d} {:2d} {:8.4f} {:8.4f} {:6.2f} {:s} {:s} {:s}'.format(
-                idsca[0], idsca[1], self.blk.obsdata['ra'][idsca[0]], self.blk.obsdata['dec'][idsca[0]],
-                self.blk.obsdata['pa'][idsca[0]], cpos, ' ' if inimage.exists_ else 'x', inimage.infile))
+                cpos = "{:8.4f} {:8.4f}".format(cpos_coord[0], cpos_coord[1])
+            print("{:7d} {:2d} {:8.4f} {:8.4f} {:6.2f} {:s} {:s} {:s}".format(
+                idsca[0], idsca[1], self.blk.obsdata["ra"][idsca[0]], self.blk.obsdata["dec"][idsca[0]],
+                self.blk.obsdata["pa"][idsca[0]], cpos, " " if inimage.exists_ else "x", inimage.infile))
         print()
-        assert any_exists, 'No candidate observations found to stack. Exiting now.'
+        assert any_exists, "No candidate observations found to stack. Exiting now."
+
+        # remove nonexistent input images
+        self.blk.obslist = [self.blk.obslist[i] for i, inimage
+                            in enumerate(self.blk.inimages) if inimage.exists_]
+        self.blk.inimages = [inimage for inimage in self.blk.inimages if inimage.exists_]
+        self.blk.n_inimage = len(self.blk.inimages)

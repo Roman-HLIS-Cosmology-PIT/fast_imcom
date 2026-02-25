@@ -52,7 +52,6 @@ class PyInSlice(InSlice):
     def __init__(self, blk: Block, idsca: tuple[int, int],
                  loaddata: bool = True, paddata: bool = True) -> None:
         self.inimage = InImage(blk, idsca)
-        # print(self.inimage.infile, "exists =", self.inimage.exists_)
         cfg = self.inimage.blk.cfg  # Shortcut.
         with fits.open(cfg.inpsf_path + "/" + InImage.psf_filename(
             cfg.inpsf_format, idsca[0])) as f:
@@ -60,10 +59,13 @@ class PyInSlice(InSlice):
         super().__init__(self.inimage.infile, psfmodel, loaddata, paddata)
 
     def load_data_and_mask(self) -> None:
-        self.wcs = self.inimage.inwcs
+        self.wcs = self.inimage.inwcs.obj
         self.scale = Stn.pixscale_native
+
+        print("input image", self.inimage.idsca)
         get_all_data(self.inimage)
         self.data = self.inimage.indata
+        print()
 
         cfg = self.inimage.blk.cfg  # Shortcut.
         assert cfg.permanent_mask is None and cfg.cr_mask_rate == 0.0
@@ -79,8 +81,13 @@ class PyOutSlice(OutSlice):
         self.this_sub = this_sub
         self.blk = Block(self.cfg, this_sub, run_coadd=False)
         self.blk.parse_config()
-
         self.process_input_images()
+
+        print("Reading input data ... ")
+        assert cfg.permanent_mask is None and cfg.cr_mask_rate == 0.0
+        print("No permanent mask")
+        print()
+
         inslices = [PyInSlice(self.blk, idsca) for idsca in self.blk.obslist]
         super().__init__(self.blk.outwcs, inslices, timing)
         del self.blk

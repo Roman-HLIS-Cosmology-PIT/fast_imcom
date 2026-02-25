@@ -39,7 +39,7 @@ class PSFModel:
                               -cls.YXCTR:cls.NTOT-1-cls.YXCTR:cls.NTOT*1j], axis=0)
         invSigma = invD.T @ np.diag(np.ones(2)/(sigma*cls.SAMP)**2) @ invD
         return np.exp(-0.5 * np.einsum("lyx,lr,ryx->yx", xy, invSigma, xy))\
-                / (2.0*np.pi * sigma**2)  # Not sure about normalization, to be tested later.
+                / (2.0*np.pi * sigma**2)  # I think such normalization is correct.
 
     @classmethod
     def pixelate_psf(cls, psf: np.ndarray) -> np.ndarray:
@@ -93,8 +93,8 @@ class SubSlice:
             ctr_in = inslice.outpix2world2inpix(self.outslice.wcs, self.ctr[None])[0]
             psf_in = inslice.get_psf(*ctr_in)
             psf_out = PSFModel.psf_gaussian(sigma, invD=np.linalg.inv(
-                SubSlice.get_dworld_dpixel(self.outslice, *self.ctr)) @\
-                SubSlice.get_dworld_dpixel(inslice, *ctr_in))
+                SubSlice.get_dworld_dpixel(inslice, *ctr_in)) @\
+                SubSlice.get_dworld_dpixel(self.outslice, *self.ctr))
             weight = PSFModel.get_weight_field(psf_in, psf_out)
 
             inxys = inslice.outpix2world2inpix(self.outslice.wcs, self.outxys)

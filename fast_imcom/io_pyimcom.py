@@ -60,7 +60,7 @@ class PyInSlice(InSlice):
 
     def load_data_and_mask(self) -> None:
         self.wcs = self.inimage.inwcs.obj
-        self.scale = Stn.pixscale_native
+        self.scale = Stn.pixscale_native / Stn.degree
 
         print("input image", self.inimage.idsca)
         get_all_data(self.inimage)

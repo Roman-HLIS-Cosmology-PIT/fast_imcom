@@ -33,13 +33,13 @@ class PSFModel:
     }
 
     @classmethod
-    def psf_gaussian(cls, sigma: float, invD: np.ndarray = np.diag(np.ones(2))) -> np.ndarray:
+    def psf_gaussian(cls, sigma: float, dout_din: np.ndarray = np.diag(np.ones(2))) -> np.ndarray:
         """Generate a 2D Gaussian PSF."""
         xy = np.flip(np.mgrid[-cls.YXCTR:cls.NTOT-1-cls.YXCTR:cls.NTOT*1j,
                               -cls.YXCTR:cls.NTOT-1-cls.YXCTR:cls.NTOT*1j], axis=0)
-        invSigma = invD.T @ np.diag(np.ones(2)/(sigma*cls.SAMP)**2) @ invD
+        invSigma = dout_din.T @ np.diag(np.ones(2) / (sigma*cls.SAMP)**2) @ dout_din
         return np.exp(-0.5 * np.einsum("lyx,lr,ryx->yx", xy, invSigma, xy))\
-                / (2.0*np.pi * sigma**2)  # I think such normalization is correct.
+                / (2.0*np.pi * (sigma*cls.SAMP)**2)  # Normalized in the output pixel plane.
 
     @classmethod
     def pixelate_psf(cls, psf: np.ndarray) -> np.ndarray:
@@ -55,7 +55,7 @@ class PSFModel:
         psf_inp_tbl = bandlimited_rfft2(psf_inp[None], cls.NPIX-1)[0]
         psf_out_tbl = bandlimited_rfft2(psf_out[None], cls.NPIX-1)[0]
 
-        weight_tbl = psf_out_tbl / psf_inp_tbl; weight_tbl.imag = 0
+        weight_tbl = psf_out_tbl / psf_inp_tbl  # ; weight_tbl.imag = 0
         return np.fft.ifftshift(bandlimited_irfft2(
             weight_tbl[None], cls.NTOT, cls.NTOT))[0] * cls.SAMP**2
 
@@ -92,9 +92,9 @@ class SubSlice:
         for i_sl, inslice in enumerate(self.outslice.inslices):
             ctr_in = inslice.outpix2world2inpix(self.outslice.wcs, self.ctr[None])[0]
             psf_in = inslice.get_psf(*ctr_in)
-            psf_out = PSFModel.psf_gaussian(sigma, invD=np.linalg.inv(
-                SubSlice.get_dworld_dpixel(inslice, *ctr_in)) @\
-                SubSlice.get_dworld_dpixel(self.outslice, *self.ctr))
+            psf_out = PSFModel.psf_gaussian(sigma, dout_din=np.linalg.inv(
+                SubSlice.get_dworld_dpixel(self.outslice, *self.ctr)) @\
+                SubSlice.get_dworld_dpixel(inslice, *ctr_in))
             weight = PSFModel.get_weight_field(psf_in, psf_out)
 
             inxys = inslice.outpix2world2inpix(self.outslice.wcs, self.outxys)
@@ -108,7 +108,7 @@ class SubSlice:
 
             weights = np.zeros((NPIX_SUB**2, self.ACCEPT*2, self.ACCEPT*2))
             compute_weights(weights, mask_out.ravel(), weight, inxys_frac,
-                            PSFModel.YXCTR, PSFModel.SAMP, self.ACCEPT)
+                            PSFModel.NTOT/2, PSFModel.SAMP, self.ACCEPT)
             adjust_weights(weights, mask_out.ravel(), inmask, inxys_int, self.ACCEPT, self.LOSS_THR)
             inslice.mask_out[self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
                              self.X*NPIX_SUB:(self.X+1)*NPIX_SUB] = mask_out

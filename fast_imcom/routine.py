@@ -178,6 +178,7 @@ def apply_weights(weights: np.ndarray, mask_out: np.ndarray, outdata: np.ndarray
     for i in range(mask_out.shape[0]):
         if not mask_out[i]: continue
 
-        outdata[:, i] += np.sum(weights[i] *\
-            indata[:, inxys_int[i, 1]-ACCEPT:inxys_int[i, 1]+ACCEPT,
-                      inxys_int[i, 0]-ACCEPT:inxys_int[i, 0]+ACCEPT])
+        for j in range(outdata.shape[0]):
+            outdata[j, i] += np.sum(weights[i] *\
+                indata[j, inxys_int[i, 1]-ACCEPT:inxys_int[i, 1]+ACCEPT,
+                          inxys_int[i, 0]-ACCEPT:inxys_int[i, 0]+ACCEPT])

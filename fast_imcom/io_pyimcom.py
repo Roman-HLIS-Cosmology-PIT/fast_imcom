@@ -7,7 +7,7 @@ from astropy.io import fits
 
 from pyimcom.config import Settings as Stn, Config
 from pyimcom.coadd import InImage, Block
-from pyimcom.layer import get_all_data
+from pyimcom.layer import get_all_data, Mask
 from .psfutil import PSFModel
 from .io_general import InSlice, OutSlice
 
@@ -51,6 +51,7 @@ class PyInSlice(InSlice):
 
     def __init__(self, blk: Block, idsca: tuple[int, int],
                  loaddata: bool = True, paddata: bool = True) -> None:
+        self.blk, self.idsca = blk, idsca
         self.inimage = InImage(blk, idsca)
         cfg = self.inimage.blk.cfg  # Shortcut.
         with fits.open(cfg.inpsf_path + "/" + InImage.psf_filename(
@@ -67,10 +68,10 @@ class PyInSlice(InSlice):
         self.data = self.inimage.indata
         print()
 
-        cfg = self.inimage.blk.cfg  # Shortcut.
+        cfg = self.blk.cfg  # Shortcut.
         assert cfg.permanent_mask is None and cfg.cr_mask_rate == 0.0
-        self.mask = np.ones((InSlice.NSIDE, InSlice.NSIDE), dtype=bool)
-        del self.inimage
+        self.mask = Mask.load_mask_from_maskfile(cfg, self.blk.obsdata, self.idsca)
+        del self.blk, self.inimage
 
 
 class PyOutSlice(OutSlice):

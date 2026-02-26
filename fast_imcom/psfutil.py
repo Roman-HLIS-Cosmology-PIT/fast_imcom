@@ -70,7 +70,7 @@ class PSFModel:
 class SubSlice:
 
     ACCEPT = 8  # Acceptance radius in native pixels.
-    LOSS_THR = 0.001  # Threshold for sum of absolute lost weights.
+    LOSS_THR = 0.1  # Threshold for sum of absolute lost weights.
 
     @staticmethod
     def get_dworld_dpixel(slice, x: float, y: float) -> np.ndarray:

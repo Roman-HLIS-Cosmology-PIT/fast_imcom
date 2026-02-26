@@ -167,9 +167,8 @@ def adjust_weights(weights: np.ndarray, mask_out: np.ndarray, inmask: np.ndarray
 
         if loss_abs == 0.0: continue
         weights[i] *= inmask_i
-        # Not sure about normalization, to be tested later.
-        # loss_frac = np.sum(weights[i] * (1-inmask_i)) / np.sum(weights[i])
-        # weights[i] *= 1 / (1 - loss_frac)
+        loss_frac = np.sum(weights[i] * (1-inmask_i)) / np.sum(weights[i])
+        weights[i] *= 1 / (1 - loss_frac)
 
 
 @njit

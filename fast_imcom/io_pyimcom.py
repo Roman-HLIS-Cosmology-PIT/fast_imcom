@@ -95,7 +95,7 @@ class PyOutSlice(OutSlice):
 
         ibx, iby = divmod(self.this_sub, self.cfg.nblock)
         self.filename = f"{self.cfg.outstem}_{ibx:02d}_{iby:02d}.fits"
-        if run_coadd: self(self.filename, timing, (self.cfg.stoptile+3)//4)
+        if run_coadd: self(self.filename, timing, min(np.inf, (self.cfg.stoptile+3)//4))
 
     def process_input_images(self) -> None:
         search_radius = Stn.sca_sidelength / np.sqrt(2.0) / Stn.degree \

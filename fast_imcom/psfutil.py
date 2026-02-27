@@ -90,6 +90,10 @@ class SubSlice:
         NPIX_SUB = self.outslice.NPIX_SUB  # Shortcut.
 
         for i_sl, inslice in enumerate(self.outslice.inslices):
+            mask_out = inslice.mask_out[self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
+                                        self.X*NPIX_SUB:(self.X+1)*NPIX_SUB].copy()
+            if not np.any(mask_out): continue
+
             ctr_in = inslice.outpix2world2inpix(self.outslice.wcs, self.ctr[None])[0]
             psf_in = inslice.get_psf(*ctr_in)
             psf_out = PSFModel.psf_gaussian(sigma, dout_din=np.linalg.inv(
@@ -99,11 +103,9 @@ class SubSlice:
 
             inxys = inslice.outpix2world2inpix(self.outslice.wcs, self.outxys)
             inxys_frac, inxys_int = np.modf(inxys); inxys_int = inxys_int.astype(int) + 1
-            x_min, y_min = np.min(inxys_int, axis=0) - self.ACCEPT
-            x_max, y_max = np.max(inxys_int, axis=0) + self.ACCEPT
+            x_min, y_min = np.min(inxys_int[mask_out.ravel()], axis=0) - self.ACCEPT
+            x_max, y_max = np.max(inxys_int[mask_out.ravel()], axis=0) + self.ACCEPT
             indata, inmask = inslice.get_data_and_mask(x_min, x_max, y_min, y_max)
-            mask_out = inslice.mask_out[self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
-                                        self.X*NPIX_SUB:(self.X+1)*NPIX_SUB].copy()
             inxys_int -= np.array([x_min, y_min])
 
             weights = np.zeros((NPIX_SUB**2, self.ACCEPT*2, self.ACCEPT*2))

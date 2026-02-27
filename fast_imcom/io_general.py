@@ -72,8 +72,8 @@ class InSlice:
 
         subsize = NPIX_SUB * self.outslice.wcs.wcs.cdelt[1] /\
             (0.11 * u.arcsec.to("degree"))  # Subslice size in input pixels.
-        mask_sp = np.all((inxys_sp >=           -0.5-subsize) &
-                         (inxys_sp <= self.NSIDE-0.5+subsize), axis=1).reshape(NSUB+1, NSUB+1)
+        mask_sp = np.all((inxys_sp >=         -1-subsize) &
+                         (inxys_sp <  self.NSIDE+subsize), axis=1).reshape(NSUB+1, NSUB+1)
         self.mask_out = np.zeros((OutSlice.NPIX_TOT, OutSlice.NPIX_TOT), dtype=bool)
 
         for X in range(NSUB):
@@ -95,9 +95,8 @@ class InSlice:
 
                 self.mask_out[Y*NPIX_SUB:(Y+1)*NPIX_SUB,
                               X*NPIX_SUB:(X+1)*NPIX_SUB] =\
-                    np.all((inxys >=           -0.5+ACCEPT) &
-                           (inxys <= self.NSIDE-0.5-ACCEPT), axis=1).\
-                    reshape(NPIX_SUB, NPIX_SUB)
+                    np.all((inxys >=         -1+ACCEPT) &
+                           (inxys <  self.NSIDE-ACCEPT), axis=1).reshape(NPIX_SUB, NPIX_SUB)
 
         self.is_relevant = np.any(self.mask_out)
         if not self.is_relevant: return

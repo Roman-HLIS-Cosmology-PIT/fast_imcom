@@ -24,7 +24,7 @@ class InSlice:
     NLAYER = 1  # Number of input layers.
 
     def __init__(self, filename: str, psfmodel: PSFModel = None,
-                 loaddata: bool = True, paddata: bool = True) -> None:
+                 loaddata: bool = True, paddata: bool = False) -> None:
         self.filename = filename
         self.psfmodel = psfmodel
 

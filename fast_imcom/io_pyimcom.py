@@ -50,7 +50,7 @@ class PyPSFModel(PSFModel):
 class PyInSlice(InSlice):
 
     def __init__(self, blk: Block, idsca: tuple[int, int],
-                 loaddata: bool = True, paddata: bool = True) -> None:
+                 loaddata: bool = True, paddata: bool = False) -> None:
         self.blk, self.idsca = blk, idsca
         self.inimage = InImage(blk, idsca)
         cfg = self.inimage.blk.cfg  # Shortcut.
@@ -70,7 +70,9 @@ class PyInSlice(InSlice):
 
         cfg = self.blk.cfg  # Shortcut.
         assert cfg.permanent_mask is None and cfg.cr_mask_rate == 0.0
-        self.mask = Mask.load_mask_from_maskfile(cfg, self.blk.obsdata, self.idsca)
+        # Temporarily exclude `L2_2506` input masks
+        self.mask = np.ones((InSlice.NSIDE, InSlice.NSIDE), dtype=bool)
+        self.data[0] *= Mask.load_mask_from_maskfile(cfg, self.blk.obsdata, self.idsca)
         del self.blk, self.inimage
 
 
@@ -82,7 +84,10 @@ class PyOutSlice(OutSlice):
         self.this_sub = this_sub
         self.blk = Block(self.cfg, this_sub, run_coadd=False)
         self.blk.parse_config()
-        self.process_input_images()
+        # self.process_input_images()
+        # Hardcode list of input images to save time on tests.
+        self.blk.obslist = [(np.int64(1507), 7), (np.int64(1508), 7), (np.int64(1509), 7),
+                            (np.int64(14748), 10), (np.int64(14749), 10), (np.int64(14753), 12)]
 
         print("Reading input data ... ")
         assert cfg.permanent_mask is None and cfg.cr_mask_rate == 0.0

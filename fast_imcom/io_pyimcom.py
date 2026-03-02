@@ -23,8 +23,9 @@ class FConfig(Config):
         PSFModel.SAMP = 6
         PSFModel.NTOT = PSFModel.NPIX * PSFModel.SAMP
         PSFModel.YXCTR = (PSFModel.NTOT-1) / 2
-        InSlice.NLAYER = self.n_inframe
+        PSFModel.BL_CIRC = 47
 
+        InSlice.NLAYER = self.n_inframe
         assert self.pad_sides in ["all", "none"], \
             'PADSIDES: Fast IMCOM only supports "all" or "none".'
         OutSlice.NSUB, OutSlice.NPIX_SUB, OutSlice.CDELT =\

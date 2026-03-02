@@ -22,6 +22,7 @@ class PSFModel:
     SAMP = 4  # Oversampling rate of PSF arrays.
     NTOT = NPIX * SAMP  # PSF array size in oversampled pixels.
     YXCTR = NTOT / 2  # PSF array center in oversampled pixels.
+    BL_CIRC = 33  # Circular bandlimit in oversampled pixels.
 
     SIGMA_TO_FWHM = 2 * np.sqrt(2 * np.log(2))
     SIGMA = {
@@ -51,13 +52,21 @@ class PSFModel:
 
     @classmethod
     def get_weight_field(cls, psf_in: np.ndarray, psf_out: np.ndarray) -> np.ndarray:
+        bl = (cls.BL_CIRC+0.5) * 2.0**0.5; bl_int = int(bl)
         psf_inp = cls.pixelate_psf(psf_in)
-        psf_inp_tbl = bandlimited_rfft2(psf_inp[None], cls.NPIX//2-1)[0]
+        psf_inp_tbl = bandlimited_rfft2(psf_inp[None], bl_int)[0]
 
         psf_out_ = psf_out.copy()
         for i in range(2):
-            psf_out_tbl = bandlimited_rfft2(psf_out_[None], cls.NPIX//2-1)[0]
+            psf_out_tbl = bandlimited_rfft2(psf_out_[None], bl_int)[0]
             weight_tbl = psf_out_tbl / psf_inp_tbl
+
+            # Apply circular bandlimit.
+            for du in range(bl_int+1):
+                dv = int((bl**2 - du**2)**0.5)
+                if dv == bl_int: continue
+                weight_tbl[dv+1:bl_int*2-dv, du] = 0
+
             weight = np.fft.ifftshift(bandlimited_irfft2(
                 weight_tbl[None], cls.NTOT, cls.NTOT))[0]
 

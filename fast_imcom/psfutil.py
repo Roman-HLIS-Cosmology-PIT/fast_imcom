@@ -12,7 +12,7 @@ pixelate_psf : Pixelate a 2D (input) PSF.
 import numpy as np
 from astropy.wcs.utils import local_partial_pixel_derivatives
 
-from .routine import bandlimited_rfft2, bandlimited_irfft2
+from .routine import bandlimited_rfft2, bandlimited_irfft2, manually_convolve
 from .routine import compute_weights, adjust_weights, apply_weights
 
 
@@ -52,12 +52,22 @@ class PSFModel:
     @classmethod
     def get_weight_field(cls, psf_in: np.ndarray, psf_out: np.ndarray) -> np.ndarray:
         psf_inp = cls.pixelate_psf(psf_in)
-        psf_inp_tbl = bandlimited_rfft2(psf_inp[None], cls.NPIX-1)[0]
-        psf_out_tbl = bandlimited_rfft2(psf_out[None], cls.NPIX-1)[0]
+        psf_inp_tbl = bandlimited_rfft2(psf_inp[None], cls.NPIX//2-1)[0]
 
-        weight_tbl = psf_out_tbl / psf_inp_tbl  # ; weight_tbl.imag = 0
-        return np.fft.ifftshift(bandlimited_irfft2(
-            weight_tbl[None], cls.NTOT, cls.NTOT))[0] * cls.SAMP**2
+        psf_out_ = psf_out.copy()
+        for i in range(2):
+            psf_out_tbl = bandlimited_rfft2(psf_out_[None], cls.NPIX//2-1)[0]
+            weight_tbl = psf_out_tbl / psf_inp_tbl
+            weight = np.fft.ifftshift(bandlimited_irfft2(
+                weight_tbl[None], cls.NTOT, cls.NTOT))[0]
+
+            if i == 0:
+                recons = np.zeros((cls.NTOT//2, cls.NTOT//2))
+                manually_convolve(psf_inp[::cls.SAMP, ::cls.SAMP] * cls.SAMP**2,
+                                  weight, recons, cls.NPIX, cls.SAMP, SubSlice.ACCEPT)
+                psf_out_[cls.NTOT//4:-cls.NTOT//4, cls.NTOT//4:-cls.NTOT//4] = recons
+
+        return weight * cls.SAMP**2
 
     def __init__(self, psfdata: np.ndarray) -> None:
         self.psfdata = psfdata

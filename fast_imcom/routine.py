@@ -60,25 +60,6 @@ def bandlimited_irfft2(rft: np.array, ny: int, nx: int) -> np.array:
 
 
 @njit
-def manually_convolve(image: np.array, weight: np.array, out_arr: np.array,
-                      NPIX: int, SAMP: int, ACCEPT: int) -> None:
-    NTOT = NPIX * SAMP
-    YXMIN = NTOT//2 - ACCEPT*SAMP
-    YXMAX = NTOT//2 + ACCEPT*SAMP
-
-    for y in range(NTOT//2):
-        y0 = NPIX//4 + (y+SAMP-1)//SAMP
-        dy = -y % SAMP
-
-        for x in range(NTOT//2):
-            x0 = NPIX//4 + (x+SAMP-1)//SAMP
-            dx = -x % SAMP
-
-            out_arr[y, x] = np.sum(image[y0-ACCEPT:y0+ACCEPT, x0-ACCEPT:x0+ACCEPT] *\
-                                   weight[YXMIN+dy:YXMAX+dy:SAMP, YXMIN+dx:YXMAX+dx:SAMP])
-
-
-@njit
 def iD5512C_getw(w: np.array, fh: float) -> None:
     '''Interpolation code written by Python.
 

@@ -12,7 +12,7 @@ pixelate_psf : Pixelate a 2D (input) PSF.
 import numpy as np
 from astropy.wcs.utils import local_partial_pixel_derivatives
 
-from .routine import bandlimited_rfft2, bandlimited_irfft2, manually_convolve
+from .routine import bandlimited_rfft2, bandlimited_irfft2
 from .routine import compute_weights, adjust_weights, apply_weights
 
 
@@ -55,29 +55,17 @@ class PSFModel:
         bl = (cls.BL_CIRC+0.5) * 2.0**0.5; bl_int = int(bl)
         psf_inp = cls.pixelate_psf(psf_in)
         psf_inp_tbl = bandlimited_rfft2(psf_inp[None], bl_int)[0]
+        psf_out_tbl = bandlimited_rfft2(psf_out[None], bl_int)[0]
 
-        psf_out_ = psf_out.copy()
-        for i in range(2):
-            if i == 0: continue
-            psf_out_tbl = bandlimited_rfft2(psf_out_[None], bl_int)[0]
-            weight_tbl = psf_out_tbl / psf_inp_tbl
+        weight_tbl = psf_out_tbl / psf_inp_tbl
+        # Apply circular bandlimit.
+        for du in range(bl_int+1):
+            dv = int((bl**2 - du**2)**0.5)
+            if dv == bl_int: continue
+            weight_tbl[dv+1:bl_int*2-dv, du] = 0
 
-            # Apply circular bandlimit.
-            for du in range(bl_int+1):
-                dv = int((bl**2 - du**2)**0.5)
-                if dv == bl_int: continue
-                weight_tbl[dv+1:bl_int*2-dv, du] = 0
-
-            weight = np.fft.ifftshift(bandlimited_irfft2(
-                weight_tbl[None], cls.NTOT, cls.NTOT))[0]
-
-            if i == 0:
-                recons = np.zeros((cls.NTOT//2, cls.NTOT//2))
-                manually_convolve(psf_inp[::cls.SAMP, ::cls.SAMP] * cls.SAMP**2,
-                                  weight, recons, cls.NPIX, cls.SAMP, SubSlice.ACCEPT)
-                psf_out_[cls.NTOT//4:-cls.NTOT//4, cls.NTOT//4:-cls.NTOT//4] = recons
-
-        return weight * cls.SAMP**2
+        return np.fft.ifftshift(bandlimited_irfft2(
+            weight_tbl[None], cls.NTOT, cls.NTOT))[0] * cls.SAMP**2
 
     def __init__(self, psfdata: np.ndarray) -> None:
         self.psfdata = psfdata

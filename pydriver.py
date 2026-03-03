@@ -4,6 +4,7 @@ import warnings; warnings.filterwarnings("ignore")
 import numpy as np
 
 from fast_imcom.io_pyimcom import FConfig, PyOutSlice
+from fast_imcom.psfutil import SubSlice
 
 
 cfg = FConfig("../pyimcom_hack_2025Aug4/config_test25-F.json")
@@ -28,4 +29,5 @@ cfg.stoptile = np.inf
 
 cfg.configure_fast_imcom()
 # PyOutSlice.SAVE_ALL = True
+SubSlice.ACCEPT = 16
 outslice = PyOutSlice(cfg, timing=True)

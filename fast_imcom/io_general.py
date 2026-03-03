@@ -28,7 +28,7 @@ class InSlice:
         self.filename = filename
         self.psfmodel = psfmodel
 
-        self.inx_min = self.iny_min = 0
+        self.inxy_min = np.zeros(2, dtype=int)
         if loaddata:
             self.load_data_and_mask()
             if paddata: self.pad_data_and_mask()
@@ -51,29 +51,29 @@ class InSlice:
         self.mask = np.pad(self.mask, ACCEPT, mode="constant", constant_values=False)
 
         self.NSIDE = InSlice.NSIDE + ACCEPT*2
-        self.inx_min = self.iny_min = -ACCEPT
-        self.wcs.wcs.crpix += np.array([ACCEPT, ACCEPT])
+        self.inxy_min -= ACCEPT
+        # self.wcs.wcs.crpix += np.array([ACCEPT, ACCEPT])
 
     def outpix2world2inpix(self, outwcs: wcs.WCS, outxys: np.ndarray) -> np.ndarray:
-        return self.wcs.all_world2pix(outwcs.all_pix2world(outxys, 0), 0)
+        return self.wcs.all_world2pix(outwcs.all_pix2world(outxys, 0), 0) - self.inxy_min
 
-    def inpix2world2outpix(self, outwcs: wcs.WCS, inxys: np.ndarray) -> np.ndarray:
-        return outwcs.all_world2pix(self.wcs.all_pix2world(inxys, 0), 0)
+    # def inpix2world2outpix(self, outwcs: wcs.WCS, inxys: np.ndarray) -> np.ndarray:
+    #     return outwcs.all_world2pix(self.wcs.all_pix2world(inxys + self.inxy_min, 0), 0)
 
-    def assess_overlap(self, shrink: bool = True) -> None:
+    def assess_overlap(self, shrink: bool = False) -> None:
         ACCEPT = SubSlice.ACCEPT  # Shortcuts.
         NSUB, NPIX_SUB = OutSlice.NSUB, OutSlice.NPIX_SUB
         outxys_sp = np.moveaxis(np.array(np.meshgrid(
             np.arange(NSUB+1)*NPIX_SUB, np.arange(NSUB+1)*NPIX_SUB)), 0, -1).reshape(-1, 2)
         inxys_sp = self.outpix2world2inpix(self.outslice.wcs, outxys_sp)
         if shrink:
-            out_inx_min, out_iny_min = np.rint(np.min(inxys_sp, axis=0)).astype(int)
-            out_inx_max, out_iny_max = np.rint(np.max(inxys_sp, axis=0)).astype(int)
+            inxy_min = np.array([self.NSIDE-1]*2, dtype=int)
+            inxy_max = np.zeros(2, dtype=int)
 
         subsize = NPIX_SUB * self.outslice.wcs.wcs.cdelt[1] /\
             (0.11 * u.arcsec.to("degree"))  # Subslice size in input pixels.
-        mask_sp = np.all((inxys_sp >=         -1-subsize) &
-                         (inxys_sp <  self.NSIDE+subsize), axis=1).reshape(NSUB+1, NSUB+1)
+        mask_sp = np.all((inxys_sp >=             -subsize) &
+                         (inxys_sp <  self.NSIDE+1+subsize), axis=1).reshape(NSUB+1, NSUB+1)
         self.mask_out = np.zeros((OutSlice.NPIX_TOT, OutSlice.NPIX_TOT), dtype=bool)
 
         for X in range(NSUB):
@@ -85,35 +85,29 @@ class InSlice:
                     np.arange(NPIX_SUB) + Y*NPIX_SUB)), 0, -1).reshape(-1, 2)
                 inxys = self.outpix2world2inpix(self.outslice.wcs, outxys)
 
-                if shrink:
-                    inx_min, iny_min = np.rint(np.min(inxys, axis=0)).astype(int)
-                    inx_max, iny_max = np.rint(np.max(inxys, axis=0)).astype(int)
-                    out_inx_min = min(out_inx_min, inx_min)
-                    out_iny_min = min(out_iny_min, iny_min)
-                    out_inx_max = max(out_inx_max, inx_max)
-                    out_iny_max = max(out_iny_max, iny_max)
-
+                mask = np.all((inxys >=         -1+ACCEPT) &
+                              (inxys <  self.NSIDE-ACCEPT), axis=1)
                 self.mask_out[Y*NPIX_SUB:(Y+1)*NPIX_SUB,
-                              X*NPIX_SUB:(X+1)*NPIX_SUB] =\
-                    np.all((inxys >=         -1+ACCEPT) &
-                           (inxys <  self.NSIDE-ACCEPT), axis=1).reshape(NPIX_SUB, NPIX_SUB)
+                              X*NPIX_SUB:(X+1)*NPIX_SUB] = mask.reshape(NPIX_SUB, NPIX_SUB)
+                if not np.any(mask): continue
+
+                if shrink:
+                    inxy_min = np.min([inxy_min, np.floor(np.min(
+                        inxys[mask], axis=0)).astype(int)], axis=0)
+                    inxy_max = np.max([inxy_max, np.ceil (np.max(
+                        inxys[mask], axis=0)).astype(int)], axis=0)
 
         self.is_relevant = np.any(self.mask_out)
         if not self.is_relevant: return
 
         if shrink:
-            out_inx_min = max(out_inx_min - ACCEPT*3, 0)
-            out_iny_min = max(out_iny_min - ACCEPT*3, 0)
-            out_inx_max = min(out_inx_max + ACCEPT*3, self.NSIDE-1)
-            out_iny_max = min(out_iny_max + ACCEPT*3, self.NSIDE-1)
-
-            self.inx_min += out_inx_min; self.iny_min += out_iny_min
-            self.wcs.wcs.crpix -= np.array([out_inx_min, out_iny_min])
-            self.data = self.data[:, out_iny_min:out_iny_max+1, out_inx_min:out_inx_max+1].copy()
-            self.mask = self.mask[   out_iny_min:out_iny_max+1, out_inx_min:out_inx_max+1].copy()
+            inxy_min -= ACCEPT-1; inxy_max += ACCEPT-1
+            self.inxy_min = inxy_min  # ; self.wcs.wcs.crpix -= inxy_min
+            self.data = self.data[:, inxy_min[1]:inxy_max[1]+1, inxy_min[0]:inxy_max[0]+1].copy()
+            self.mask = self.mask[   inxy_min[1]:inxy_max[1]+1, inxy_min[0]:inxy_max[0]+1].copy()
 
     def get_psf(self, x: float = -np.inf, y: float = -np.inf) -> np.ndarray:
-        return self.psfmodel(x + self.inx_min, y + self.iny_min)
+        return self.psfmodel(x + self.inxy_min[0], y + self.inxy_min[1])
 
     def get_data_and_mask(self, x_min, x_max, y_min, y_max) -> tuple[np.ndarray, np.ndarray]:
         return (self.data[:, y_min:y_max+1, x_min:x_max+1].copy(),

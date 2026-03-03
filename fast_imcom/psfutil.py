@@ -108,11 +108,7 @@ class SubSlice:
                 SubSlice.get_dworld_dpixel(self.outslice, *self.ctr)) @\
                 SubSlice.get_dworld_dpixel(inslice, *ctr_in))
             weight = PSFModel.get_weight_field(psf_in, psf_out)
-
-            weight_flip = np.zeros_like(weight)
-            weight_flip[0, :] = weight[0, :]
-            weight_flip[:, 0] = weight[:, 0]
-            weight_flip[1:, 1:] = np.flip(weight[1:, 1:])
+            weight[1:, 1:] = np.flip(weight[1:, 1:])  # For convolution.
 
             inxys = inslice.outpix2world2inpix(self.outslice.wcs, self.outxys)
             inxys_frac, inxys_int = np.modf(inxys); inxys_int = inxys_int.astype(int) + 1
@@ -122,7 +118,7 @@ class SubSlice:
             inxys_int -= np.array([x_min, y_min])
 
             weights = np.zeros((NPIX_SUB**2, self.ACCEPT*2, self.ACCEPT*2))
-            compute_weights(weights, mask_out.ravel(), weight_flip, inxys_frac,
+            compute_weights(weights, mask_out.ravel(), weight, inxys_frac,
                             PSFModel.NTOT/2, PSFModel.SAMP, self.ACCEPT)
             adjust_weights(weights, mask_out.ravel(), inmask, inxys_int, self.ACCEPT, self.LOSS_THR)
             inslice.mask_out[self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,

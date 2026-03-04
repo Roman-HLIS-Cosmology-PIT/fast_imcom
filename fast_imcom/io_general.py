@@ -52,15 +52,14 @@ class InSlice:
 
         self.NSIDE = InSlice.NSIDE + ACCEPT*2
         self.inxy_min -= ACCEPT
-        # self.wcs.wcs.crpix += np.array([ACCEPT, ACCEPT])
 
     def outpix2world2inpix(self, outwcs: wcs.WCS, outxys: np.ndarray) -> np.ndarray:
         return self.wcs.all_world2pix(outwcs.all_pix2world(outxys, 0), 0) - self.inxy_min
 
-    # def inpix2world2outpix(self, outwcs: wcs.WCS, inxys: np.ndarray) -> np.ndarray:
-    #     return outwcs.all_world2pix(self.wcs.all_pix2world(inxys + self.inxy_min, 0), 0)
+    def inpix2world2outpix(self, outwcs: wcs.WCS, inxys: np.ndarray) -> np.ndarray:
+        return outwcs.all_world2pix(self.wcs.all_pix2world(inxys + self.inxy_min, 0), 0)
 
-    def assess_overlap(self, shrink: bool = False) -> None:
+    def assess_overlap(self, shrink: bool = True) -> None:
         ACCEPT = SubSlice.ACCEPT  # Shortcuts.
         NSUB, NPIX_SUB = OutSlice.NSUB, OutSlice.NPIX_SUB
         outxys_sp = np.moveaxis(np.array(np.meshgrid(
@@ -102,9 +101,27 @@ class InSlice:
 
         if shrink:
             inxy_min -= ACCEPT-1; inxy_max += ACCEPT-1
-            self.inxy_min = inxy_min  # ; self.wcs.wcs.crpix -= inxy_min
+            self.inxy_min = inxy_min
             self.data = self.data[:, inxy_min[1]:inxy_max[1]+1, inxy_min[0]:inxy_max[0]+1].copy()
             self.mask = self.mask[   inxy_min[1]:inxy_max[1]+1, inxy_min[0]:inxy_max[0]+1].copy()
+
+    def propagate_mask(self, outwcs: wcs.WCS) -> None:
+        REJECT = SubSlice.REJECT  # Shortcuts.
+        NPIX_TOT = OutSlice.NPIX_TOT
+        dys = np.arange(-REJECT, REJECT)
+        dxs = (((REJECT-0.5)**2 - (dys+(dys<0))**2) ** 0.5).astype(int)
+
+        bad_outxys = self.inpix2world2outpix(outwcs, \
+            np.flip(np.where(1-self.mask), axis=0).T).astype(int) + 1
+        bad_outxys = bad_outxys[(np.min(bad_outxys, axis=1) >           -REJECT)]
+        bad_outxys = bad_outxys[(np.max(bad_outxys, axis=1) < NPIX_TOT-1+REJECT)]
+
+        for bad_x, bad_y in bad_outxys:
+            for dy, dx in zip(dys, dxs):
+                y = bad_y + dy
+                if y < 0 or y >= NPIX_TOT: continue
+                self.mask_out[y, max(bad_x-dx, 0):
+                    max(min(bad_x+dx, NPIX_TOT), 0)] = False
 
     def get_psf(self, x: float = -np.inf, y: float = -np.inf) -> np.ndarray:
         return self.psfmodel(x + self.inxy_min[0], y + self.inxy_min[1])
@@ -144,6 +161,7 @@ class OutSlice:
                              f"@ t = {perf_counter() - tstart:.6f} s")
             inslice.outslice = self
             inslice.assess_overlap()
+            inslice.propagate_mask(self.wcs)
         if timing: print("Finished assessing inslices",
                          f"@ t = {perf_counter() - tstart:.6f} s", end="\n\n")
 

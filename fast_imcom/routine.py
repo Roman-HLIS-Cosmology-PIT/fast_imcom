@@ -160,14 +160,17 @@ def adjust_weights(weights: np.ndarray, mask_out: np.ndarray, inmask: np.ndarray
 
         inmask_i = inmask[inxys_int[i, 1]-ACCEPT:inxys_int[i, 1]+ACCEPT,
                           inxys_int[i, 0]-ACCEPT:inxys_int[i, 0]+ACCEPT]
-        loss_abs = np.sum(np.abs(weights[i]) * (1-inmask_i))
-        if loss_abs >= LOSS_THR:
+        # loss_abs = np.sum(np.abs(weights[i]) * (1-inmask_i))
+        loss_frac = np.sum(weights[i] * (1-inmask_i)) / np.sum(weights[i])
+        # if loss_abs >= LOSS_THR:
+        if loss_frac >= LOSS_THR:
             mask_out[i] = False
             continue
 
-        if loss_abs == 0.0: continue
+        # if loss_abs == 0.0: continue
+        if loss_frac == 0.0: continue
         weights[i] *= inmask_i
-        loss_frac = np.sum(weights[i] * (1-inmask_i)) / np.sum(weights[i])
+        # loss_frac = np.sum(weights[i] * (1-inmask_i)) / np.sum(weights[i])
         weights[i] *= 1 / (1 - loss_frac)
 
 

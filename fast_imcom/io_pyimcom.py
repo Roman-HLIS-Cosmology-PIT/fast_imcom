@@ -72,8 +72,9 @@ class PyInSlice(InSlice):
         cfg = self.blk.cfg  # Shortcut.
         assert cfg.permanent_mask is None and cfg.cr_mask_rate == 0.0
         # Temporarily exclude `L2_2506` input masks
-        self.mask = np.ones((InSlice.NSIDE, InSlice.NSIDE), dtype=bool)
-        self.data[0] *= Mask.load_mask_from_maskfile(cfg, self.blk.obsdata, self.idsca)
+        # self.mask = np.ones((InSlice.NSIDE, InSlice.NSIDE), dtype=bool)
+        # self.data[0] *= Mask.load_mask_from_maskfile(cfg, self.blk.obsdata, self.idsca)
+        self.mask = Mask.load_mask_from_maskfile(cfg, self.blk.obsdata, self.idsca)
         del self.blk, self.inimage
 
 

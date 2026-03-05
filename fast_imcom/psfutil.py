@@ -81,7 +81,8 @@ class SubSlice:
     ACCEPT = 8  # Acceptance radius in native pixels.
     REJECT = 8  # Rejection radius in output pixels.
     MASK_THR = 32  # Threshold for number of masked input pixels.
-    # LOSS_THR = 0.1  # Threshold for sum of absolute lost weights.
+    NDIFF = 5  # Number of iterations for weight diffusion.
+    RENORM = False  # Whether to renormalize weights after masking.
 
     @staticmethod
     def get_dworld_dpixel(slice, x: float, y: float) -> np.ndarray:
@@ -120,14 +121,15 @@ class SubSlice:
             indata, inmask = inslice.get_data_and_mask(x_min, x_max, y_min, y_max)
             inxys_int -= np.array([x_min, y_min])
 
-            apply_mask_threshold(mask_out.ravel(), inmask, inxys_int, self.MASK_THR)  # self.ACCEPT
+            apply_mask_threshold(mask_out.ravel(), inmask, inxys_int, self.MASK_THR)
             inslice.mask_out[self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
                              self.X*NPIX_SUB:(self.X+1)*NPIX_SUB] = mask_out
             if not np.any(mask_out): continue
             weights = np.zeros((NPIX_SUB**2, self.ACCEPT*2, self.ACCEPT*2))
             compute_weights(weights, mask_out.ravel(), weight, inxys_frac,
                             PSFModel.NTOT/2, PSFModel.SAMP, self.ACCEPT)
-            adjust_weights(weights, mask_out.ravel(), inmask, inxys_int, self.ACCEPT)  # , self.LOSS_THR
+            adjust_weights(weights, mask_out.ravel(), inmask, inxys_int,
+                           self.ACCEPT, self.NDIFF, self.RENORM)
 
             outdata = np.zeros((inslice.NLAYER, NPIX_SUB, NPIX_SUB))
             apply_weights(weights, mask_out.ravel(), outdata.reshape(inslice.NLAYER, -1),

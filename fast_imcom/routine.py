@@ -166,17 +166,33 @@ def compute_weights(weights: np.ndarray, mask_out: np.ndarray, weight: np.ndarra
 
 @njit
 def adjust_weights(weights: np.ndarray, mask_out: np.ndarray, inmask: np.ndarray,
-                   inxys_int: np.ndarray, ACCEPT: int, RENORM: bool = False) -> None:
+                   inxys_int: np.ndarray, ACCEPT: int, NDIFF: int = 5,
+                   RENORM: bool = False) -> None:
     for i in range(mask_out.shape[0]):
         if not mask_out[i]: continue
 
         inmask_i = inmask[inxys_int[i, 1]-ACCEPT:inxys_int[i, 1]+ACCEPT,
                           inxys_int[i, 0]-ACCEPT:inxys_int[i, 0]+ACCEPT]
+        if NDIFF > 0:
+            bad_ys, bad_xs = np.where(1-inmask_i)
+            max_ = ACCEPT * 2 - 1
+            weights_i = weights[i]
+
+        for _ in range(NDIFF):
+            for j in range(bad_ys.shape[0]):
+                bad_y, bad_x = bad_ys[j], bad_xs[j]
+                quarter = weights_i[bad_y, bad_x] / 4
+                if quarter == 0.0: continue
+
+                weights_i[bad_y, bad_x] = 0.0
+                if bad_y >    0: weights_i[bad_y-1, bad_x] += quarter
+                if bad_y < max_: weights_i[bad_y+1, bad_x] += quarter
+                if bad_x >    0: weights_i[bad_y, bad_x-1] += quarter
+                if bad_x < max_: weights_i[bad_y, bad_x+1] += quarter
 
         if RENORM:
             loss_frac = np.sum(weights[i] * (1-inmask_i)) / np.sum(weights[i])
             if loss_frac == 0.0: continue
-
         weights[i] *= inmask_i
         if RENORM:
             weights[i] *= 1 / (1 - loss_frac)

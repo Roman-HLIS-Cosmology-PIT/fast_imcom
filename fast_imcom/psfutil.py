@@ -13,7 +13,8 @@ import numpy as np
 from astropy.wcs.utils import local_partial_pixel_derivatives
 
 from .routine import bandlimited_rfft2, bandlimited_irfft2
-from .routine import compute_weights, adjust_weights, apply_weights
+from .routine import apply_mask_threshold, compute_weights
+from .routine import adjust_weights, apply_weights
 
 
 class PSFModel:
@@ -22,7 +23,7 @@ class PSFModel:
     SAMP = 4  # Oversampling rate of PSF arrays.
     NTOT = NPIX * SAMP  # PSF array size in oversampled pixels.
     YXCTR = NTOT / 2  # PSF array center in oversampled pixels.
-    BL_CIRC = 33  # Circular bandlimit in oversampled pixels.
+    BL_CIRC = 33  # Circular bandlimit in Fourier space.
 
     SIGMA_TO_FWHM = 2 * np.sqrt(2 * np.log(2))
     SIGMA = {
@@ -79,7 +80,8 @@ class SubSlice:
 
     ACCEPT = 8  # Acceptance radius in native pixels.
     REJECT = 8  # Rejection radius in output pixels.
-    LOSS_THR = 0.1  # Threshold for sum of absolute lost weights.
+    MASK_THR = 32  # Threshold for number of masked input pixels.
+    # LOSS_THR = 0.1  # Threshold for sum of absolute lost weights.
 
     @staticmethod
     def get_dworld_dpixel(slice, x: float, y: float) -> np.ndarray:
@@ -118,12 +120,14 @@ class SubSlice:
             indata, inmask = inslice.get_data_and_mask(x_min, x_max, y_min, y_max)
             inxys_int -= np.array([x_min, y_min])
 
+            apply_mask_threshold(mask_out.ravel(), inmask, inxys_int, self.MASK_THR)  # self.ACCEPT
+            inslice.mask_out[self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
+                             self.X*NPIX_SUB:(self.X+1)*NPIX_SUB] = mask_out
+            if not np.any(mask_out): continue
             weights = np.zeros((NPIX_SUB**2, self.ACCEPT*2, self.ACCEPT*2))
             compute_weights(weights, mask_out.ravel(), weight, inxys_frac,
                             PSFModel.NTOT/2, PSFModel.SAMP, self.ACCEPT)
-            adjust_weights(weights, mask_out.ravel(), inmask, inxys_int, self.ACCEPT, self.LOSS_THR)
-            inslice.mask_out[self.Y*NPIX_SUB:(self.Y+1)*NPIX_SUB,
-                             self.X*NPIX_SUB:(self.X+1)*NPIX_SUB] = mask_out
+            adjust_weights(weights, mask_out.ravel(), inmask, inxys_int, self.ACCEPT)  # , self.LOSS_THR
 
             outdata = np.zeros((inslice.NLAYER, NPIX_SUB, NPIX_SUB))
             apply_weights(weights, mask_out.ravel(), outdata.reshape(inslice.NLAYER, -1),

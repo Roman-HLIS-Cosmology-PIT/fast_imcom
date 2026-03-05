@@ -114,8 +114,8 @@ def reggridD5512C(infunc: np.array, x0: float, y0: float, SAMP: int,
                   ACCEPT: int, out_arr: np.array, circ_cut: bool = False) -> None:
     wx_ar = np.zeros((10,))
     wy_ar = np.zeros((10,))
-    x0i = np.int32(x0)
-    y0i = np.int32(y0)
+    x0i = int(x0)
+    y0i = int(y0)
     iD5512C_getw(wx_ar, x0-x0i-0.5)
     iD5512C_getw(wy_ar, y0-y0i-0.5)
 
@@ -128,7 +128,7 @@ def reggridD5512C(infunc: np.array, x0: float, y0: float, SAMP: int,
     for ix in range(ACCEPT2):
         xi = xmin + ix*SAMP
         if circ_cut:
-            cut = (ACCEPT-1) - np.int32(((ACCEPT-0.5)**2 -\
+            cut = (ACCEPT-1) - int(((ACCEPT-0.5)**2 -\
                 (ix-(ACCEPT-(ix<ACCEPT)))**2) ** 0.5)
 
         for i in range(cut*SAMP, 10+(ACCEPT2-1)*SAMP):
@@ -143,6 +143,18 @@ def reggridD5512C(infunc: np.array, x0: float, y0: float, SAMP: int,
 
 
 @njit
+def apply_mask_threshold(mask_out: np.ndarray, inmask: np.ndarray,
+                         inxys_int: np.ndarray, MASK_THR: int, ACCEPT_: int = 8) -> None:
+    for i in range(mask_out.shape[0]):
+        if not mask_out[i]: continue
+
+        inmask_i = inmask[inxys_int[i, 1]-ACCEPT_:inxys_int[i, 1]+ACCEPT_,
+                          inxys_int[i, 0]-ACCEPT_:inxys_int[i, 0]+ACCEPT_]
+        if np.sum(1-inmask_i) > MASK_THR:
+            mask_out[i] = False
+
+
+@njit
 def compute_weights(weights: np.ndarray, mask_out: np.ndarray, weight: np.ndarray,
                     inxys_frac: np.ndarray, YXCTR: float, SAMP: int, ACCEPT: int) -> None:
     for i in range(mask_out.shape[0]):
@@ -154,20 +166,20 @@ def compute_weights(weights: np.ndarray, mask_out: np.ndarray, weight: np.ndarra
 
 @njit
 def adjust_weights(weights: np.ndarray, mask_out: np.ndarray, inmask: np.ndarray,
-                   inxys_int: np.ndarray, ACCEPT: int, LOSS_THR: float) -> None:
+                   inxys_int: np.ndarray, ACCEPT: int, RENORM: bool = False) -> None:
     for i in range(mask_out.shape[0]):
         if not mask_out[i]: continue
 
         inmask_i = inmask[inxys_int[i, 1]-ACCEPT:inxys_int[i, 1]+ACCEPT,
                           inxys_int[i, 0]-ACCEPT:inxys_int[i, 0]+ACCEPT]
-        # loss_frac = np.sum(weights[i] * (1-inmask_i)) / np.sum(weights[i])
-        # if np.abs(loss_frac) >= LOSS_THR:
-        #     mask_out[i] = False
-        #     continue
 
-        # if loss_frac == 0.0: continue
+        if RENORM:
+            loss_frac = np.sum(weights[i] * (1-inmask_i)) / np.sum(weights[i])
+            if loss_frac == 0.0: continue
+
         weights[i] *= inmask_i
-        # weights[i] *= 1 / (1 - loss_frac)
+        if RENORM:
+            weights[i] *= 1 / (1 - loss_frac)
 
 
 @njit

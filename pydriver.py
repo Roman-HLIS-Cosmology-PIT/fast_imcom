@@ -28,7 +28,7 @@ cfg.psfsplit = ""
 cfg.stoptile = np.inf
 
 cfg.configure_fast_imcom()
-# PyOutSlice.SAVE_ALL = True
-PyOutSlice.SIGMA *= 1.2
-SubSlice.ACCEPT = 16
+PyOutSlice.SAVE_ALL = True
+# PyOutSlice.SIGMA *= 1.2
+# SubSlice.ACCEPT = 16
 outslice = PyOutSlice(cfg, timing=True)
